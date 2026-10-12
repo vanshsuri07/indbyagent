@@ -1,0 +1,39 @@
+{
+  "indbyagent": "0.1",
+  "party": {
+    "title": "Rooftop BBQ",
+    "starts_at": "2026-11-15T17:00:00.000Z",
+    "ends_at": "2026-11-15T21:00:00.000Z",
+    "timezone": "America/New_York",
+    "location": "123 Main St, Apt 4B, New York, NY 10001"
+  },
+  "guest": {
+    "name": "Anya",
+    "party_size_max": 3
+  },
+  "rsvp": {
+    "status": "yes",
+    "party_size": 2,
+    "dietary": ["vegetarian", "gluten-free"],
+    "note": "Looking forward to it!",
+    "by": { "kind": "agent", "name": "Claude" }
+  },
+  "actions": {
+    "rsvp": "POST http://localhost:3000/i/TESTTOKEN_abc123def456/rsvp",
+    "message_host": "POST http://localhost:3000/i/TESTTOKEN_abc123def456/message",
+    "calendar": "GET http://localhost:3000/i/TESTTOKEN_abc123def456.ics"
+  },
+  "schema": {
+    "rsvp": {
+      "status": "yes|no|maybe|needs_human",
+      "party_size": "int<=3",
+      "dietary": "string[]",
+      "note": "string",
+      "by": { "kind": "agent|human", "name": "string" }
+    },
+    "message_host": {
+      "text": "string",
+      "by": "same"
+    }
+  }
+}

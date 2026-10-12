@@ -1,0 +1,43 @@
+{
+  "indbyagent": "0.1",
+  "party": {
+    "title": "Maya's 6th Birthday",
+    "starts_at": "2026-10-20T18:30:00.000Z",
+    "timezone": "Asia/Calcutta"
+  },
+  "guest": {
+    "name": "leo",
+    "party_size_max": 1
+  },
+  "rsvp": {
+    "status": "pending"
+  },
+  "actions": {
+    "rsvp": "POST http://localhost:3000/i/TESTTOKEN_abc123def456/rsvp",
+    "message_host": "POST http://localhost:3000/i/TESTTOKEN_abc123def456/message",
+    "calendar": "GET http://localhost:3000/i/TESTTOKEN_abc123def456.ics"
+  },
+  "schema": {
+    "rsvp": {
+      "status": "yes|no|maybe|needs_human",
+      "party_size": "int<=1",
+      "dietary": "string[]",
+      "note": "string",
+      "by": { "kind": "agent|human", "name": "string" }
+    },
+    "rank_poll": {
+      "ranking": "options you can make, best first (omit ones you can't)",
+      "note": "string",
+      "by": "same"
+    },
+    "answer_poll": {
+      "choice": "one of options",
+      "note": "string",
+      "by": "same"
+    },
+    "message_host": {
+      "text": "string",
+      "by": "same"
+    }
+  }
+}
