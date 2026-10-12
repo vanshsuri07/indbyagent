@@ -219,27 +219,50 @@ export function formatInvite(invite: Invite, inviteOrigin: string): string {
     lines.push(`Actions: ${actionNames.join(", ")}`);
 
     // Cross-origin warnings
-    const crossOriginActions = new Map<string, string[]>();
-    for (const action of parsed) {
-      try {
-        const actionOrigin = new URL(action.url).origin;
-        if (actionOrigin !== inviteOrigin) {
-          const actionNamesForOrigin = crossOriginActions.get(actionOrigin) ?? [];
-          actionNamesForOrigin.push(action.name);
-          crossOriginActions.set(actionOrigin, actionNamesForOrigin);
-        }
-      } catch {
-        // If the URL can't be parsed (e.g. has {id} template), skip warning.
-      }
-    }
-    for (const [actionOrigin, actionNames] of crossOriginActions) {
-      lines.push(
-        `⚠ Server action URLs use ${actionOrigin}, not ${inviteOrigin} (${actionNames.join(", ")})`,
-      );
+    const warnings = getCrossOriginWarnings(invite, inviteOrigin);
+    for (const warning of warnings) {
+      lines.push(warning);
     }
   }
 
   return lines.join("\n");
+}
+
+export function formatCrossOriginWarning(
+  actionOrigin: string,
+  inviteOrigin: string,
+  actionNames: string[],
+): string {
+  return `⚠ Server action URLs use ${actionOrigin}, not ${inviteOrigin} (${actionNames.join(", ")})`;
+}
+
+export function getCrossOriginWarnings(invite: Invite, inviteOrigin: string): string[] {
+  const actionEntries = Object.entries(invite.actions).filter(
+    (e): e is [string, string] => typeof e[1] === "string",
+  );
+  if (actionEntries.length === 0) return [];
+
+  const parsed = actionEntries.map(([name, val]) => parseAction(name, val));
+  const crossOriginActions = new Map<string, string[]>();
+
+  for (const action of parsed) {
+    try {
+      const actionOrigin = new URL(action.url).origin;
+      if (actionOrigin !== inviteOrigin) {
+        const actionNamesForOrigin = crossOriginActions.get(actionOrigin) ?? [];
+        actionNamesForOrigin.push(action.name);
+        crossOriginActions.set(actionOrigin, actionNamesForOrigin);
+      }
+    } catch {
+      // If the URL can't be parsed, skip warning.
+    }
+  }
+
+  const warnings: string[] = [];
+  for (const [actionOrigin, actionNames] of crossOriginActions) {
+    warnings.push(formatCrossOriginWarning(actionOrigin, inviteOrigin, actionNames));
+  }
+  return warnings;
 }
 
 // ---------- poll formatting ----------

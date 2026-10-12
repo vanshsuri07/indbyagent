@@ -13,7 +13,13 @@ import { dirname, join } from "node:path";
 
 import { normalizeInviteUrl, isNormalized, looksLikeToken } from "../src/lib/invite-url.js";
 import type { NormalizedInviteUrl, InviteUrlError } from "../src/lib/invite-url.js";
-import { formatInvite, formatTime, parseAction } from "../src/lib/format.js";
+import {
+  formatInvite,
+  formatTime,
+  parseAction,
+  formatCrossOriginWarning,
+  getCrossOriginWarnings,
+} from "../src/lib/format.js";
 import { fetchInvite } from "../src/lib/client.js";
 import type { FetchResult, FetchError } from "../src/lib/client.js";
 import type { Invite } from "../src/types.js";
@@ -306,6 +312,60 @@ describe("parseAction", () => {
     const a = parseAction("cal", "http://localhost:3000/i/TOKEN.ics");
     assert.equal(a.method, "GET");
     assert.equal(a.url, "http://localhost:3000/i/TOKEN.ics");
+  });
+});
+
+describe("formatCrossOriginWarning", () => {
+  it("formats a single-line warning with origins and action names", () => {
+    const warning = formatCrossOriginWarning("http://localhost:3000", "http://example.com", [
+      "rsvp",
+      "calendar",
+    ]);
+    assert.equal(
+      warning,
+      "⚠ Server action URLs use http://localhost:3000, not http://example.com (rsvp, calendar)",
+    );
+  });
+});
+
+describe("getCrossOriginWarnings", () => {
+  it("returns collapsed warning line when origins differ", () => {
+    const warnings = getCrossOriginWarnings(
+      {
+        indbyagent: "0.1",
+        party: { title: "Test" },
+        guest: { name: "Guest", party_size_max: 1 },
+        rsvp: { status: "pending" },
+        actions: {
+          rsvp: "POST http://localhost:3000/i/T/rsvp",
+          message_host: "POST http://localhost:3000/i/T/message",
+        },
+        schema: {},
+      },
+      "http://example.com",
+    );
+    assert.equal(warnings.length, 1);
+    assert.equal(
+      warnings[0],
+      "⚠ Server action URLs use http://localhost:3000, not http://example.com (rsvp, message_host)",
+    );
+  });
+
+  it("returns empty array when origins match", () => {
+    const warnings = getCrossOriginWarnings(
+      {
+        indbyagent: "0.1",
+        party: { title: "Test" },
+        guest: { name: "Guest", party_size_max: 1 },
+        rsvp: { status: "pending" },
+        actions: {
+          rsvp: "POST http://localhost:3000/i/T/rsvp",
+        },
+        schema: {},
+      },
+      "http://localhost:3000",
+    );
+    assert.deepEqual(warnings, []);
   });
 });
 
