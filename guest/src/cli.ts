@@ -13,6 +13,7 @@
  */
 import { parseArgs } from "node:util";
 import { readCommand } from "./commands/read.js";
+import { rsvpCommand } from "./commands/rsvp.js";
 
 // ---------- command registry ----------
 
@@ -25,6 +26,10 @@ const commands: Record<string, Command> = {
   read: {
     description: "Fetch and display an invite",
     run: readCommand,
+  },
+  rsvp: {
+    description: "RSVP to an invite",
+    run: rsvpCommand,
   },
 };
 
@@ -53,29 +58,27 @@ Exit codes:
 // ---------- main ----------
 
 async function main(): Promise<number> {
-  // Parse only the global --help flag; leave the rest to subcommands.
-  const { values, positionals } = parseArgs({
-    args: process.argv.slice(2),
-    options: {
-      help: { type: "boolean", short: "h", default: false },
-    },
-    allowPositionals: true,
-    strict: false,
-  });
+  const rawArgs = process.argv.slice(2);
+  const firstPositional = rawArgs.find((arg) => !arg.startsWith("-"));
 
-  if (values.help || positionals.length === 0) {
+  if (!firstPositional) {
     printHelp();
-    return positionals.length === 0 && !values.help ? 2 : 0;
+    return rawArgs.includes("--help") || rawArgs.includes("-h") ? 0 : 2;
   }
 
-  const cmdName = positionals[0];
-  const cmd = commands[cmdName];
+  const cmd = commands[firstPositional];
   if (!cmd) {
-    console.error(`Unknown command: ${cmdName}\nRun 'indby-guest --help' for usage.`);
+    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+      printHelp();
+      return 0;
+    }
+    console.error(`Unknown command: ${firstPositional}\nRun 'indby-guest --help' for usage.`);
     return 2;
   }
 
-  return cmd.run(positionals.slice(1));
+  const cmdIdx = rawArgs.indexOf(firstPositional);
+  const cmdArgs = [...rawArgs.slice(0, cmdIdx), ...rawArgs.slice(cmdIdx + 1)];
+  return cmd.run(cmdArgs);
 }
 
 main().then((code) => process.exit(code));

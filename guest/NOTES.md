@@ -74,3 +74,21 @@ The CLI prints the `error` field verbatim.
 ### 14. party.date = "tbd"
 `src/lib/invite.ts:63` — When `starts_at` is null, the JSON includes `party.date = "tbd"`.
 This is a synthetic field not in the DB Party type.
+
+### 15. needs_human status offered in schema but restricted in CLI
+`src/lib/invite.ts:81` (`schema.rsvp.status: "yes|no|maybe|needs_human"`) and `src/lib/invite.ts:161` (`z.enum(["yes", "no", "maybe", "needs_human"])`).
+The server accepts `needs_human` (meaning an agent is consulting its human before answering). The CLI restricts user-provided `--status` to `yes|no|maybe`.
+
+### 16. Idempotency-Key header handling & unique constraint 23505
+`src/lib/http.ts:31-33` (`idem(req): req.headers.get("idempotency-key")`) reads the header verbatim with no length or charset restriction in code.
+`supabase/migrations/20261004171052_indbyagent_core.sql:60` (`create unique index rsvps_idem_idx on rsvps(guest_id, idempotency_key) where idempotency_key is not null`).
+`src/lib/invite.ts:176-182`: `writeRsvp` catches Postgres error code `23505` and treats it as success (`return { ok: true }`). It does not update the row or flag the replay.
+Because `respondWithInvite` returns the latest row from `guest_state`, a replayed key with a different body silently leaves the original RSVP intact.
+
+### 17. Server party_size defaulting and validation
+`src/lib/invite.ts:174-175`: `const size = body.party_size ?? (body.status === "yes" ? 1 : 0); if (size > ctx.guest.party_size_max) return { error: \`party_size exceeds max of \${ctx.guest.party_size_max}\` };`.
+When omitted, `party_size` defaults on the server to 1 for "yes" and 0 for other statuses. If it exceeds `party_size_max`, the server returns a 400 error JSON: `{"error": "party_size exceeds max of N"}`.
+
+### 18. Browser form vs API in RSVP route
+`src/app/i/[token]/rsvp/route.ts:13-24`: If `content-type` includes `form`, it parses multipart form data, defaults `by.kind` to `human`, channel to `web`, and redirects 303. Otherwise it parses JSON via `parseBody(req, RsvpBody)` (`src/lib/http.ts:14-23`), sets channel `api`, defaultKind `agent`, and responds with the updated invite JSON.
+

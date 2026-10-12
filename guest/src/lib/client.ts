@@ -101,3 +101,105 @@ export async function fetchInvite(jsonUrl: string): Promise<FetchResult | FetchE
 
   return { ok: true, invite, raw };
 }
+
+export type PostRsvpResult =
+  | { ok: true; invite: Invite; raw: string }
+  | { ok: false; kind: "http"; status: number; body: unknown }
+  | { ok: false; kind: "network"; message: string };
+
+/**
+ * POST an RSVP to the specified RSVP endpoint.
+ */
+export async function postRsvp(
+  rsvpUrl: string,
+  body: unknown,
+  idempotencyKey?: string,
+): Promise<PostRsvpResult> {
+  let res: Response;
+  const headers: Record<string, string> = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": USER_AGENT,
+  };
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  try {
+    res = await fetch(rsvpUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return { ok: false, kind: "network", message: `Request timed out after ${TIMEOUT_MS / 1000}s` };
+    }
+    if (err instanceof TypeError) {
+      return { ok: false, kind: "network", message: `Network error: ${err.message}` };
+    }
+    return {
+      ok: false,
+      kind: "network",
+      message: `Fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (!res.ok) {
+    let errBody: unknown;
+    if (contentType.includes("application/json")) {
+      try {
+        errBody = await res.json();
+      } catch {
+        errBody = await res.text().catch(() => "");
+      }
+    } else {
+      errBody = await res.text().catch(() => "");
+    }
+    return { ok: false, kind: "http", status: res.status, body: errBody };
+  }
+
+  if (!contentType.includes("application/json")) {
+    return {
+      ok: false,
+      kind: "network",
+      message: `Expected JSON but got ${contentType || "unknown content type"}`,
+    };
+  }
+
+  let raw: string;
+  let data: unknown;
+  try {
+    raw = await res.text();
+    data = JSON.parse(raw);
+  } catch {
+    return { ok: false, kind: "network", message: "Response body is not valid JSON" };
+  }
+
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("guest" in data) ||
+    typeof (data as Record<string, unknown>).guest !== "object"
+  ) {
+    return {
+      ok: false,
+      kind: "network",
+      message: "This does not look like a personal invite (no guest object); it may be a join document.",
+    };
+  }
+
+  const invite = data as Invite;
+  if (!invite.actions?.rsvp) {
+    return {
+      ok: false,
+      kind: "network",
+      message: "This does not look like a personal invite (no rsvp action); it may be a join document.",
+    };
+  }
+
+  return { ok: true, invite, raw };
+}
