@@ -81,8 +81,8 @@ function formatTimeBrief(iso: string, timezone: string): string {
 function formatPollOption(option: string, timezone: string): string {
   // Check if this looks like an ISO date string.
   if (/^\d{4}-\d{2}-\d{2}T/.test(option) && !isNaN(Date.parse(option))) {
-    const [formatted] = formatTime(option, timezone);
-    return formatted;
+    const [formatted, effectiveTz] = formatTime(option, timezone);
+    return `${formatted} (${effectiveTz})`;
   }
   return option;
 }
@@ -268,14 +268,17 @@ export function getCrossOriginWarnings(invite: Invite, inviteOrigin: string): st
 // ---------- poll formatting ----------
 
 function formatPoll(poll: InvitePoll, timezone: string): string {
+  const pollTz = resolveTimezone(poll.timezone ?? timezone);
   const parts: string[] = [];
   parts.push(`  [${poll.kind}] ${poll.q ?? "(no question)"} (id: ${poll.id})`);
 
-  const formattedOptions = poll.options.map((o) => formatPollOption(o, timezone));
-  parts.push(`    Options: ${formattedOptions.join(", ")}`);
+  parts.push("    Options:");
+  for (let i = 0; i < poll.options.length; i++) {
+    parts.push(`      ${i + 1}. ${formatPollOption(poll.options[i], pollTz)}`);
+  }
 
   if (poll.kind === "dates" && poll.your_ranking && poll.your_ranking.length > 0) {
-    const formattedRanking = poll.your_ranking.map((o) => formatPollOption(o, timezone));
+    const formattedRanking = poll.your_ranking.map((o) => formatPollOption(o, pollTz));
     parts.push(`    Your ranking: ${formattedRanking.join(" > ")}`);
   } else if (poll.kind !== "dates" && poll.your_answer) {
     parts.push(`    Your answer: ${poll.your_answer}`);
@@ -284,7 +287,7 @@ function formatPoll(poll: InvitePoll, timezone: string): string {
   }
 
   if (poll.closes_at) {
-    const [closesFormatted] = formatTime(poll.closes_at, timezone);
+    const [closesFormatted] = formatTime(poll.closes_at, pollTz);
     parts.push(`    Closes: ${closesFormatted}`);
   }
 

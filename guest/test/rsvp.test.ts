@@ -546,4 +546,52 @@ describe("rsvp command", () => {
       await fake.close();
     }
   });
+
+  it("timed-out POST explains server may be starting/compiling and retrying is safe when idempotency key is unchanged", async () => {
+    const token = "TESTTOKEN_abc123def456";
+    const server = http.createServer((req, res) => {
+      if (req.method === "GET") {
+        const origin = `http://${req.headers.host}`;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            indbyagent: "0.1",
+            party: { title: "Timeout Party", timezone: "UTC" },
+            guest: { name: "leo", party_size_max: 1 },
+            rsvp: { status: "pending" },
+            actions: { rsvp: `POST ${origin}/i/${token}/rsvp` },
+            schema: {},
+          }),
+        );
+        return;
+      }
+      // Hang on POST
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const port = (server.address() as { port: number }).port;
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `http://127.0.0.1:${port}/i/${token}`,
+        "--status",
+        "yes",
+        "--timeout",
+        "0.05",
+      ]);
+      assert.equal(code, 1);
+      const outErr = errs.join("\n");
+      assert.ok(outErr.includes("starting or compiling"), `Expected compiling message in: ${outErr}`);
+      assert.ok(
+        outErr.includes("Retrying is safe when the idempotency key is unchanged"),
+        `Expected idempotency retry safety message in: ${outErr}`,
+      );
+    } finally {
+      console.error = origErr;
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
 });

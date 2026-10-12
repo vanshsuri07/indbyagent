@@ -115,6 +115,26 @@ describe("ranking library", () => {
       assert.equal(result.kept.length, 0);
       assert.equal(result.dropped.length, 2);
     });
+
+    it("formats all-day clash reasons as \"clashes with all-day event 'Holiday' on Fri 16 Oct\" without clock time", () => {
+      // 2026-10-16 midnight in Asia/Calcutta is 2026-10-15T18:30:00.000Z
+      const busy: BusyInterval[] = [
+        {
+          startMs: Date.parse("2026-10-15T18:30:00.000Z"),
+          endMs: Date.parse("2026-10-16T18:30:00.000Z"),
+          summary: "Holiday",
+          isAllDay: true,
+        },
+      ];
+      const options = ["2026-10-16T09:35:00.000Z"];
+      const result = evaluatePollOptions(options, 120, "Asia/Calcutta", busy);
+
+      assert.equal(result.dropped.length, 1);
+      assert.equal(
+        result.dropped[0].reason,
+        "clashes with all-day event 'Holiday' on Fri 16 Oct",
+      );
+    });
   });
 
   describe("rankingMatches", () => {

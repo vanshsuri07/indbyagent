@@ -5,7 +5,7 @@
  */
 import { parseArgs } from "node:util";
 import { normalizeInviteUrl, isNormalized } from "../lib/invite-url.js";
-import { fetchInvite, postRsvp } from "../lib/client.js";
+import { fetchInvite, postRsvp, parseTimeoutMs } from "../lib/client.js";
 import { formatInvite } from "../lib/format.js";
 import { deriveIdempotencyKey } from "../lib/idempotency.js";
 import { printServerError } from "../lib/errors.js";
@@ -40,6 +40,7 @@ export async function rsvpCommand(args: string[]): Promise<number> {
       note: { type: "string" },
       dietary: { type: "string" },
       "idempotency-key": { type: "string" },
+      timeout: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -58,6 +59,7 @@ Options:
   --note <note>           Note for the host
   --dietary <a,b,c>       Dietary preferences (comma-separated)
   --idempotency-key <key> Custom idempotency key
+  --timeout <seconds>     Request timeout in seconds (default: 30)
   --json                  Print the raw invite JSON and nothing else
   --help                  Show this help`);
     return 0;
@@ -69,6 +71,12 @@ Options:
   }
   if (positionals.length > 1) {
     console.error("Too many arguments. Expected exactly one invite URL.");
+    return 2;
+  }
+
+  const timeoutMs = parseTimeoutMs(values.timeout);
+  if (timeoutMs === null) {
+    console.error("Invalid --timeout: must be a positive number of seconds.");
     return 2;
   }
 
@@ -108,7 +116,7 @@ Options:
   }
 
   // GET current invite first
-  const getRes = await fetchInvite(parsed.jsonUrl);
+  const getRes = await fetchInvite(parsed.jsonUrl, timeoutMs);
   if (!getRes.ok) {
     console.error(getRes.message);
     return 1;
@@ -150,7 +158,7 @@ Options:
     deriveIdempotencyKey(parsed.token, body, currentInvite.rsvp);
 
   // POST RSVP
-  const postRes = await postRsvp(postUrl, body, idempotencyKey);
+  const postRes = await postRsvp(postUrl, body, idempotencyKey, timeoutMs);
   if (!postRes.ok) {
     if (postRes.kind === "http") {
       printServerError(postUrl, postRes.status, postRes.body);

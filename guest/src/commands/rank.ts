@@ -7,9 +7,9 @@
 import { parseArgs } from "node:util";
 import * as fs from "node:fs";
 import { normalizeInviteUrl, isNormalized } from "../lib/invite-url.js";
-import { fetchInvite, postRank } from "../lib/client.js";
+import { fetchInvite, postRank, parseTimeoutMs } from "../lib/client.js";
 import { formatInvite, formatTime } from "../lib/format.js";
-import { parseIcs, isValidIanaTimeZone } from "../lib/ics.js";
+import { parseIcs, isValidIanaTimeZone, type ParseIcsResult } from "../lib/ics.js";
 import {
   evaluatePollOptions,
   rankingMatches,
@@ -17,23 +17,48 @@ import {
 } from "../lib/ranking.js";
 import { deriveIdempotencyKey } from "../lib/idempotency.js";
 import { printServerError } from "../lib/errors.js";
-import type { Invite, InvitePoll } from "../types.js";
+import type { InvitePoll } from "../types.js";
 
 /**
- * Format the ranking details for display.
+ * Describe a filesystem read error in plain words without raw Node error text.
+ */
+function describeFileReadError(err: unknown): string {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  if (code === "ENOENT") return "not found";
+  if (code === "EACCES" || code === "EPERM") return "not readable";
+  if (code === "EISDIR") return "not readable (is a directory)";
+  return "not readable";
+}
+
+/**
+ * Format the calendar and ranking summary before any POST or dry run.
  */
 function printRankingReport(
-  poll: InvitePoll,
+  icsFile: string,
+  parseResult: ParseIcsResult,
   rankingResult: RankingResult,
   partyTz: string,
 ): void {
-  if (rankingResult.dropped.length > 0) {
+  console.log(
+    `Calendar: ${icsFile} (${parseResult.totalEventsChecked} events checked, ${parseResult.recurringExpanded} recurring expanded, ${parseResult.warnings.length} warnings)`,
+  );
+  if (parseResult.totalEventsChecked === 0) {
     console.log(
-      `Dropped ${rankingResult.dropped.length} option(s) due to calendar clashes:`,
+      "Warning: calendar yielded 0 events (nothing parsed — do not confuse with no clashes)",
     );
-    for (const d of rankingResult.dropped) {
-      const [optFormatted] = formatTime(d.option, partyTz);
-      console.log(`  - ${optFormatted}: ${d.reason}`);
+  }
+  for (const w of parseResult.warnings) {
+    console.log(`Warning: ${w}`);
+  }
+
+  if (rankingResult.dropped.length === 0) {
+    console.log("Dropped:  none");
+  } else {
+    for (let i = 0; i < rankingResult.dropped.length; i++) {
+      const d = rankingResult.dropped[i];
+      const [optFormatted, effTz] = formatTime(d.option, partyTz);
+      const prefix = i === 0 ? "Dropped:  " : "          ";
+      console.log(`${prefix}${optFormatted} (${effTz}) — ${d.reason}`);
     }
   }
 
@@ -43,13 +68,15 @@ function printRankingReport(
     );
   }
 
-  console.log(
-    `Ranked ${rankingResult.kept.length} option(s) for "${poll.q}" (soonest first):`,
-  );
-  for (let i = 0; i < rankingResult.kept.length; i++) {
-    const opt = rankingResult.kept[i];
-    const [optFormatted] = formatTime(opt, partyTz);
-    console.log(`  ${i + 1}. ${optFormatted}`);
+  if (rankingResult.kept.length === 0) {
+    console.log("Ranking:  none");
+  } else {
+    for (let i = 0; i < rankingResult.kept.length; i++) {
+      const opt = rankingResult.kept[i];
+      const [optFormatted, effTz] = formatTime(opt, partyTz);
+      const prefix = i === 0 ? "Ranking:  " : "          ";
+      console.log(`${prefix}${i + 1}. ${optFormatted} (${effTz})`);
+    }
   }
 }
 
@@ -64,6 +91,7 @@ export async function rankCommand(args: string[]): Promise<number> {
       note: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       "idempotency-key": { type: "string" },
+      timeout: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -84,6 +112,7 @@ Options:
   --note <note>           Note for the host
   --dry-run               Check clashes and show ranking without sending POST
   --idempotency-key <key> Custom idempotency key
+  --timeout <seconds>     Request timeout in seconds (default: 30)
   --json                  Print JSON output
   --help                  Show this help`);
     return 0;
@@ -102,6 +131,12 @@ Options:
 
   if (!values.ics) {
     console.error("Missing required option --ics <file>.");
+    return 2;
+  }
+
+  const timeoutMs = parseTimeoutMs(values.timeout);
+  if (timeoutMs === null) {
+    console.error("Invalid --timeout: must be a positive number of seconds.");
     return 2;
   }
 
@@ -128,7 +163,7 @@ Options:
     icsContent = fs.readFileSync(values.ics, "utf-8");
   } catch (err: unknown) {
     console.error(
-      `Error reading .ics file: ${err instanceof Error ? err.message : String(err)}`,
+      `Cannot read calendar file ${values.ics}: ${describeFileReadError(err)}`,
     );
     return 2;
   }
@@ -141,7 +176,7 @@ Options:
   }
 
   // Fetch current invite document
-  const getRes = await fetchInvite(parsed.jsonUrl);
+  const getRes = await fetchInvite(parsed.jsonUrl, timeoutMs);
   if (!getRes.ok) {
     console.error(getRes.message);
     return 1;
@@ -159,14 +194,22 @@ Options:
   if (values.poll) {
     const found = (currentInvite.polls ?? []).find((p) => p.id === values.poll);
     if (!found) {
-      console.error(`Poll not found: ${values.poll}`);
-      return 1;
+      console.error(`Unknown poll id: ${values.poll}`);
+      console.error("Valid polls:");
+      for (const p of currentInvite.polls ?? []) {
+        console.error(`  ${p.id}: ${p.q}`);
+      }
+      return 2;
     }
     if (found.kind !== "dates") {
       console.error(
         `Poll ${values.poll} is a "${found.kind}" poll, not a dates poll.`,
       );
-      return 1;
+      console.error("Valid dates polls:");
+      for (const p of datePolls) {
+        console.error(`  ${p.id}: ${p.q}`);
+      }
+      return 2;
     }
     targetPoll = found;
   } else if (datePolls.length === 1) {
@@ -194,7 +237,7 @@ Options:
       : undefined;
 
   // Parse .ics busy intervals
-  let parseResult;
+  let parseResult: ParseIcsResult;
   try {
     parseResult = parseIcs({
       icsContent,
@@ -217,6 +260,11 @@ Options:
     parseResult.intervals,
   );
 
+  // Always print the calendar, dropped, and ranking summary before any POST or dry run (when not --json)
+  if (!values.json) {
+    printRankingReport(values.ics, parseResult, rankingResult, partyTz);
+  }
+
   // If every option clashes, send nothing and exit 1
   if (rankingResult.kept.length === 0) {
     if (values.json) {
@@ -234,25 +282,13 @@ Options:
     }
     console.error("All options clash with existing events on your calendar:");
     for (const d of rankingResult.dropped) {
-      const [optFormatted] = formatTime(d.option, partyTz);
-      console.error(`  - ${optFormatted}: ${d.reason}`);
+      const [optFormatted, effTz] = formatTime(d.option, partyTz);
+      console.error(`  - ${optFormatted} (${effTz}): ${d.reason}`);
     }
     console.error(
       "No options can be ranked. You can message the host to propose alternatives (POST /i/<token>/message).",
     );
     return 1;
-  }
-
-  // Already set check
-  if (rankingMatches(targetPoll.your_ranking, rankingResult.kept)) {
-    if (values.json) {
-      console.log(getRes.raw);
-      return 0;
-    }
-    console.log("Already set, nothing sent");
-    printRankingReport(targetPoll, rankingResult, partyTz);
-    console.log(formatInvite(currentInvite, parsed.origin));
-    return 0;
   }
 
   // Prepare request body and URL
@@ -288,15 +324,25 @@ Options:
       );
       return 0;
     }
-    printRankingReport(targetPoll, rankingResult, partyTz);
     console.log(`Dry run: would POST to ${postUrl}`);
     console.log(`Idempotency-Key: ${idempotencyKey}`);
     console.log(`Payload: ${JSON.stringify(body, null, 2)}`);
     return 0;
   }
 
+  // Already set check
+  if (rankingMatches(targetPoll.your_ranking, rankingResult.kept)) {
+    if (values.json) {
+      console.log(getRes.raw);
+      return 0;
+    }
+    console.log("Already set, nothing sent");
+    console.log(formatInvite(currentInvite, parsed.origin));
+    return 0;
+  }
+
   // POST ranking to server
-  const postRes = await postRank(postUrl, body, idempotencyKey);
+  const postRes = await postRank(postUrl, body, idempotencyKey, timeoutMs);
   if (!postRes.ok) {
     if (postRes.kind === "http") {
       printServerError(postUrl, postRes.status, postRes.body);
@@ -311,8 +357,23 @@ Options:
 
   // Verify returned ranking matches requested
   if (!rankingMatches(freshPoll?.your_ranking, rankingResult.kept)) {
+    const formatOrderedList = (opts: string[] | undefined): string => {
+      if (!opts || opts.length === 0) return "none";
+      return opts
+        .map((o, i) => {
+          const [formatted, effTz] = formatTime(o, partyTz);
+          return `${i + 1}. ${formatted} (${effTz})`;
+        })
+        .join(", ");
+    };
     console.error(
-      "Warning: The server returned a different ranking than requested; the request may have been ignored (for example, due to a reused idempotency key).",
+      "Error: The server returned a different ranking than the one sent.",
+    );
+    console.error(`Requested: ${formatOrderedList(rankingResult.kept)}`);
+    console.error(`Server has: ${formatOrderedList(freshPoll?.your_ranking)}`);
+    console.error(`Idempotency-Key: ${idempotencyKey}`);
+    console.error(
+      "Most likely cause: a reused --idempotency-key caused the server to ignore the request.",
     );
     return 1;
   }
@@ -322,7 +383,6 @@ Options:
     return 0;
   }
 
-  printRankingReport(targetPoll, rankingResult, partyTz);
   console.log(formatInvite(freshInvite, parsed.origin));
   return 0;
 }

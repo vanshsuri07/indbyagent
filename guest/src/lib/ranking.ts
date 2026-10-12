@@ -60,16 +60,40 @@ function formatTimeOnly(ms: number, timeZone: string): string {
 }
 
 /**
+ * Format an all-day date in the given timezone as "Fri 16 Oct" (no clock time).
+ */
+function formatAllDayDate(ms: number, timeZone: string): string {
+  const opts: Intl.DateTimeFormatOptions = {
+    timeZone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  };
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", opts).formatToParts(new Date(ms));
+  } catch {
+    parts = new Intl.DateTimeFormat("en-US", { ...opts, timeZone: "UTC" }).formatToParts(
+      new Date(ms),
+    );
+  }
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  return `${weekday} ${day} ${month}`.trim();
+}
+
+/**
  * Format a clash description for a given busy interval in the party timezone.
  */
 export function describeClash(interval: BusyInterval, timeZone: string): string {
   if (interval.isAllDay) {
-    const dayStr = formatInstant(interval.startMs, timeZone, true);
-    return `all-day event "${interval.summary}" on ${dayStr}`;
+    const dayStr = formatAllDayDate(interval.startMs, timeZone);
+    return `all-day event '${interval.summary}' on ${dayStr}`;
   }
   const startStr = formatInstant(interval.startMs, timeZone, true);
   const endStr = formatTimeOnly(interval.endMs, timeZone);
-  return `event "${interval.summary}" (${startStr} – ${endStr})`;
+  return `event '${interval.summary}' (${startStr} – ${endStr})`;
 }
 
 /**
@@ -96,7 +120,7 @@ export function evaluatePollOptions(
 
     if (clashes.length > 0) {
       const descriptions = clashes.map((c) => describeClash(c, partyTimezone));
-      const reason = `Clashes with ${descriptions.join("; ")}`;
+      const reason = `clashes with ${descriptions.join("; ")}`;
       dropped.push({
         option: opt,
         reason,

@@ -248,11 +248,15 @@ describe("formatInvite", () => {
     assert.ok(output.includes("Claude"));
   });
 
-  it("shows polls with date options formatted in party timezone", () => {
+  it("shows polls with date options formatted one per line, numbered, with party timezone name", () => {
     const output = formatInvite(datesPollInvite, "http://localhost:3000");
     assert.ok(output.includes("Which date works best for you?"), `Expected poll question in: ${output}`);
     assert.ok(output.includes("dates"), `Expected poll kind in: ${output}`);
     assert.ok(output.includes("231ad161-4501-4161-8902-6da99c0f7a5b"), `Expected poll id in: ${output}`);
+    assert.ok(output.includes("    Options:\n      1. "), `Expected numbered option 1 on its own line in: ${output}`);
+    assert.ok(output.includes("\n      2. "), `Expected numbered option 2 on its own line in: ${output}`);
+    assert.ok(output.includes("\n      3. "), `Expected numbered option 3 on its own line in: ${output}`);
+    assert.ok(output.includes("(Asia/Calcutta)"), `Expected party timezone name in poll options: ${output}`);
     assert.ok(output.includes("Oct"), `Expected formatted date month in: ${output}`);
     assert.ok(output.includes("Not answered yet"), `Expected unanswered status in: ${output}`);
   });
@@ -626,6 +630,33 @@ describe("read command end-to-end", () => {
       assert.equal(code, 2);
     } finally {
       console.error = origErr;
+    }
+  });
+
+  it("read --timeout times out with compiling message when server is slow", async () => {
+    const slow = await startServer((_req, _res) => {
+      // Never respond so request times out
+    });
+    const { readCommand } = await import("../src/commands/read.js");
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+    try {
+      const code = await readCommand([
+        `${slow.url}/i/TESTTOKEN_abc123def456`,
+        "--timeout",
+        "0.05",
+      ]);
+      assert.equal(code, 1);
+      const output = errs.join("\n");
+      assert.ok(output.includes("Request timed out"), `Expected timeout message in: ${output}`);
+      assert.ok(
+        output.includes("starting or compiling"),
+        `Expected starting or compiling hint in: ${output}`,
+      );
+    } finally {
+      console.error = origErr;
+      await slow.close();
     }
   });
 });

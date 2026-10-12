@@ -7,6 +7,8 @@
 import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
 import * as http from "node:http";
+import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -252,7 +254,7 @@ describe("indby-guest rank command", () => {
     }
   });
 
-  it("exits with 2 if .ics file does not exist", async () => {
+  it("exits with 2 if .ics file does not exist with plain-words message", async () => {
     const out = captureOutput();
     try {
       const code = await rankCommand([
@@ -261,7 +263,11 @@ describe("indby-guest rank command", () => {
         "./does-not-exist.ics",
       ]);
       assert.equal(code, 2);
-      assert.ok(out.getErrors().includes("Error reading .ics file"));
+      assert.ok(
+        out.getErrors().includes("Cannot read calendar file ./does-not-exist.ics: not found"),
+        `Expected plain-words file error in: ${out.getErrors()}`,
+      );
+      assert.ok(!out.getErrors().includes("ENOENT"));
     } finally {
       out.restore();
     }
@@ -361,6 +367,43 @@ describe("indby-guest rank command", () => {
     }
   });
 
+  it("exits with 2 on unknown --poll <id> and lists valid poll ids with their questions", async () => {
+    const server = await createFakeServer({
+      polls: [
+        {
+          id: "poll-1",
+          kind: "dates",
+          q: "Round 1 dates?",
+          options: ["2026-10-20T10:00:00Z"],
+        },
+        {
+          id: "poll-2",
+          kind: "dates",
+          q: "Round 2 dates?",
+          options: ["2026-10-22T10:00:00Z"],
+        },
+      ],
+    });
+    const out = captureOutput();
+    try {
+      const code = await rankCommand([
+        `${server.url}/i/${server.state.token}`,
+        "--ics",
+        meIcsPath,
+        "--poll",
+        "nonexistent-poll-id",
+      ]);
+      assert.equal(code, 2);
+      const err = out.getErrors();
+      assert.ok(err.includes("nonexistent-poll-id"));
+      assert.ok(err.includes("poll-1: Round 1 dates?"));
+      assert.ok(err.includes("poll-2: Round 2 dates?"));
+    } finally {
+      out.restore();
+      await server.close();
+    }
+  });
+
   it("exits with 1 when all options clash (using clash.ics)", async () => {
     const server = await createFakeServer();
     const out = captureOutput();
@@ -372,6 +415,9 @@ describe("indby-guest rank command", () => {
       ]);
       assert.equal(code, 1);
       assert.equal(server.state.postCount, 0); // Sent nothing!
+      assert.ok(out.getLogs().includes("Calendar:"));
+      assert.ok(out.getLogs().includes("Dropped:"));
+      assert.ok(out.getLogs().includes("Ranking:  none"));
       assert.ok(out.getErrors().includes("All options clash with existing events"));
       assert.ok(out.getErrors().includes("POST /i/<token>/message"));
     } finally {
@@ -392,12 +438,51 @@ describe("indby-guest rank command", () => {
       ]);
       assert.equal(code, 0);
       assert.equal(server.state.postCount, 0); // No request made!
-      assert.ok(out.getLogs().includes("Dry run: would POST to"));
-      assert.ok(out.getLogs().includes("Dropped 1 option(s)"));
-      assert.ok(out.getLogs().includes("Doctor Appointment"));
-      assert.ok(out.getLogs().includes("Ranked 2 option(s)"));
+      const logs = out.getLogs();
+      assert.ok(logs.includes("Calendar:"));
+      assert.ok(logs.includes("events checked"));
+      assert.ok(logs.includes("Dropped:"));
+      assert.ok(logs.includes("Doctor Appointment"));
+      assert.ok(logs.includes("Ranking:  1."));
+      assert.ok(logs.includes("(Asia/Calcutta)"));
+      assert.ok(logs.includes("Dry run: would POST to"));
     } finally {
       out.restore();
+      await server.close();
+    }
+  });
+
+  it("prints a warning line when the calendar parses to zero events", async () => {
+    const server = await createFakeServer();
+    const emptyIcsPath = path.join(os.tmpdir(), `indby-empty-${Date.now()}.ics`);
+    fs.writeFileSync(
+      emptyIcsPath,
+      "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nEND:VCALENDAR\r\n",
+      "utf-8",
+    );
+    const out = captureOutput();
+    try {
+      const code = await rankCommand([
+        `${server.url}/i/${server.state.token}`,
+        "--ics",
+        emptyIcsPath,
+        "--dry-run",
+      ]);
+      assert.equal(code, 0);
+      const logs = out.getLogs();
+      assert.ok(
+        logs.includes("(0 events checked, 0 recurring expanded, 0 warnings)"),
+        `Expected 0 events summary in: ${logs}`,
+      );
+      assert.ok(
+        logs.includes("Warning:") && logs.includes("nothing parsed"),
+        `Expected zero-events warning line in: ${logs}`,
+      );
+      assert.ok(logs.includes("Dropped:  none"));
+      assert.ok(logs.includes("Ranking:  1."));
+    } finally {
+      out.restore();
+      fs.rmSync(emptyIcsPath, { force: true });
       await server.close();
     }
   });
@@ -431,10 +516,12 @@ describe("indby-guest rank command", () => {
       const key = server.state.lastPostHeaders?.["idempotency-key"] as string;
       assert.match(key, /^[0-9a-f]{32}$/);
 
-      // Output should mention dropped clash
-      assert.ok(out.getLogs().includes("Dropped 1 option(s)"));
-      assert.ok(out.getLogs().includes("Doctor Appointment"));
-      assert.ok(out.getLogs().includes("Ranked 2 option(s)"));
+      // Output should mention Calendar, Dropped, Ranking
+      const logs = out.getLogs();
+      assert.ok(logs.includes("Calendar:"));
+      assert.ok(logs.includes("Dropped:"));
+      assert.ok(logs.includes("Doctor Appointment"));
+      assert.ok(logs.includes("Ranking:  1."));
     } finally {
       out.restore();
       await server.close();
@@ -495,6 +582,33 @@ describe("indby-guest rank command", () => {
         server.state.lastPostHeaders?.["idempotency-key"],
         "custom-rank-key-12345",
       );
+    } finally {
+      out.restore();
+      await server.close();
+    }
+  });
+
+  it("when server returns a different ranking than sent (reused --idempotency-key), prints Requested, Server has, key, and cause, and exits 1", async () => {
+    const server = await createFakeServer();
+    // Pre-mark the idempotency key as used and set an existing server ranking
+    server.state.usedKeys.add("reused-key-xyz");
+    server.state.polls[0].your_ranking = ["2026-10-16T15:41:00.000Z"];
+
+    const out = captureOutput();
+    try {
+      const code = await rankCommand([
+        `${server.url}/i/${server.state.token}`,
+        "--ics",
+        meIcsPath,
+        "--idempotency-key",
+        "reused-key-xyz",
+      ]);
+      assert.equal(code, 1);
+      const err = out.getErrors();
+      assert.ok(err.includes("Requested:"), `Expected 'Requested:' in: ${err}`);
+      assert.ok(err.includes("Server has:"), `Expected 'Server has:' in: ${err}`);
+      assert.ok(err.includes("reused-key-xyz"), `Expected key in: ${err}`);
+      assert.ok(err.includes("--idempotency-key"), `Expected cause in: ${err}`);
     } finally {
       out.restore();
       await server.close();
