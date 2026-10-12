@@ -9,6 +9,7 @@ import * as assert from "node:assert/strict";
 import * as http from "node:http";
 
 import { canonicalJson } from "../src/lib/canonical-json.js";
+import { deriveIdempotencyKey } from "../src/lib/idempotency.js";
 import { rsvpMatches, rsvpCommand } from "../src/commands/rsvp.js";
 import { printServerError } from "../src/lib/errors.js";
 
@@ -175,6 +176,23 @@ describe("canonicalJson", () => {
     assert.equal(canonicalJson("hello"), '"hello"');
     assert.equal(canonicalJson(42), "42");
     assert.equal(canonicalJson(null), "null");
+  });
+});
+
+describe("deriveIdempotencyKey", () => {
+  it("produces a 32-character hex string", () => {
+    const key = deriveIdempotencyKey("TOKEN", { status: "yes" }, { status: "pending" });
+    assert.equal(key.length, 32);
+    assert.match(key, /^[0-9a-f]{32}$/);
+  });
+
+  it("produces different keys when state changes (yes -> no -> yes works)", () => {
+    const key1 = deriveIdempotencyKey("TOKEN", { status: "yes" }, { status: "pending" });
+    const key2 = deriveIdempotencyKey("TOKEN", { status: "no" }, { status: "yes" });
+    const key3 = deriveIdempotencyKey("TOKEN", { status: "yes" }, { status: "no" });
+    assert.notEqual(key1, key2);
+    assert.notEqual(key1, key3);
+    assert.notEqual(key2, key3);
   });
 });
 

@@ -4,11 +4,10 @@
  * Idempotently submits an RSVP to an invite.
  */
 import { parseArgs } from "node:util";
-import { createHash } from "node:crypto";
 import { normalizeInviteUrl, isNormalized } from "../lib/invite-url.js";
 import { fetchInvite, postRsvp } from "../lib/client.js";
 import { formatInvite } from "../lib/format.js";
-import { canonicalJson } from "../lib/canonical-json.js";
+import { deriveIdempotencyKey } from "../lib/idempotency.js";
 import { printServerError } from "../lib/errors.js";
 import type { Invite } from "../types.js";
 
@@ -146,16 +145,9 @@ Options:
   }
 
   // Determine idempotency key
-  let idempotencyKey = values["idempotency-key"];
-  if (!idempotencyKey) {
-    const payload =
-      parsed.token +
-      "\n" +
-      canonicalJson(body) +
-      "\n" +
-      canonicalJson(currentInvite.rsvp);
-    idempotencyKey = createHash("sha256").update(payload).digest("hex").slice(0, 32);
-  }
+  const idempotencyKey =
+    values["idempotency-key"] ||
+    deriveIdempotencyKey(parsed.token, body, currentInvite.rsvp);
 
   // POST RSVP
   const postRes = await postRsvp(postUrl, body, idempotencyKey);
