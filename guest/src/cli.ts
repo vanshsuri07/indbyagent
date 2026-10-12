@@ -14,6 +14,7 @@
 import { parseArgs } from "node:util";
 import { readCommand } from "./commands/read.js";
 import { rsvpCommand } from "./commands/rsvp.js";
+import { rankCommand } from "./commands/rank.js";
 
 // ---------- command registry ----------
 
@@ -30,6 +31,10 @@ const commands: Record<string, Command> = {
   rsvp: {
     description: "RSVP to an invite",
     run: rsvpCommand,
+  },
+  rank: {
+    description: "Rank date poll options using an .ics calendar",
+    run: rankCommand,
   },
 };
 

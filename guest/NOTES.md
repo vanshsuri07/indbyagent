@@ -92,3 +92,35 @@ When omitted, `party_size` defaults on the server to 1 for "yes" and 0 for other
 ### 18. Browser form vs API in RSVP route
 `src/app/i/[token]/rsvp/route.ts:13-24`: If `content-type` includes `form`, it parses multipart form data, defaults `by.kind` to `human`, channel to `web`, and redirects 303. Otherwise it parses JSON via `parseBody(req, RsvpBody)` (`src/lib/http.ts:14-23`), sets channel `api`, defaultKind `agent`, and responds with the updated invite JSON.
 
+### 19. Rank endpoint and RankBody schema
+`src/lib/invite.ts:168`: `RankBody = z.object({ ranking: z.array(z.string().trim().min(1).max(100)).min(1).max(8), note: z.string().trim().max(300).optional(), by: By }).strict()`.
+Strict validation: between 1 and 8 non-empty strings (max 100 chars), optional note (max 300 chars), optional `by`. Unknown keys are rejected with Zod 400 issues.
+`src/lib/invite.ts:204-209`: Server loops over `body.ranking` and matches to `poll.options` case-insensitively or by `Date.parse(x) === Date.parse(r)`. Duplicates are silently removed. If any entry does not match an option, returns 400: `{"error": "ranking entries must be options: <options>"}`.
+`choice` is automatically set to `ranking[0]` (the top-ranked choice).
+
+### 20. Poll ranking idempotency and unique constraint 23505
+`src/lib/invite.ts:210-215`: Inserts into `poll_answers` with `(poll_id, guest_id, idempotency_key)`.
+If a key is replayed, error `23505` is caught and ignored (`return { ok: true }`), exactly like RSVP. A replayed key with a different ranking body silently ignores the new ranking and leaves the stored ranking unchanged.
+The CLI derives the key as the first 32 hex chars of `sha256(token + "\n" + canonical-JSON(request body) + "\n" + canonical-JSON(current your_ranking for this poll))`.
+
+### 21. Action URL template for rank_poll
+`src/lib/invite.ts:75`: `actions.rank_poll = "POST http://host/i/TOKEN/polls/{id}/rank"`.
+Contains `{id}` placeholder which must be substituted with the target poll ID.
+CLI uses the origin typed by the user, not the server's configured origin in `actions.rank_poll`, to ensure guest tokens are never leaked to external hosts.
+
+### 22. Poll kind and closed/locked polls
+`src/lib/invite.ts:202-203`: If poll kind is not "dates", returns 400 `{"error": "this poll takes a single choice; POST /polls/{id} with {choice}"}`.
+If poll is not open for this guest, returns 400 `{"error": "poll not open for this guest (check the id)"}`.
+
+### 23. Clash filter and empty ranking behavior
+An empty ranking array is rejected by Zod (`min(1)`). When every option clashes with calendar events, the CLI sends nothing, reports the reasons for each dropped option, advises the guest to message the host via `/message`, and exits with code 1.
+
+### 24. Assumptions made in rank implementation
+- Event duration defaults to 120 minutes (2 hours) when `--duration` is not specified.
+- Touching boundaries (event ends exactly when option starts, or event starts exactly when option ends) do not clash.
+- All-day events (`VALUE=DATE`) block the entire 24-hour day in `--calendar-tz` (from 00:00:00 of that day to 00:00:00 of the next day).
+- Floating times in the calendar file without a TZID are interpreted in `--calendar-tz`.
+- `--calendar-tz` defaults to `poll.timezone || party.timezone || "UTC"`.
+- Recurring events are expanded within a safety window `[minOption - 24h, maxOption + duration + 24h]` to prevent unbounded recurrence loops.
+- Events with `STATUS:CANCELLED` or `TRANSP:TRANSPARENT` are ignored for clash detection.
+

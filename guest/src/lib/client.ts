@@ -107,11 +107,32 @@ export type PostRsvpResult =
   | { ok: false; kind: "http"; status: number; body: unknown }
   | { ok: false; kind: "network"; message: string };
 
+export type PostRankResult = PostRsvpResult;
+
 /**
  * POST an RSVP to the specified RSVP endpoint.
  */
 export async function postRsvp(
   rsvpUrl: string,
+  body: unknown,
+  idempotencyKey?: string,
+): Promise<PostRsvpResult> {
+  return postJson(rsvpUrl, body, idempotencyKey);
+}
+
+/**
+ * POST a poll ranking to the specified rank endpoint.
+ */
+export async function postRank(
+  rankUrl: string,
+  body: unknown,
+  idempotencyKey?: string,
+): Promise<PostRankResult> {
+  return postJson(rankUrl, body, idempotencyKey);
+}
+
+async function postJson(
+  endpointUrl: string,
   body: unknown,
   idempotencyKey?: string,
 ): Promise<PostRsvpResult> {
@@ -126,7 +147,7 @@ export async function postRsvp(
   }
 
   try {
-    res = await fetch(rsvpUrl, {
+    res = await fetch(endpointUrl, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
