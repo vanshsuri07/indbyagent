@@ -181,7 +181,7 @@ describe("formatInvite", () => {
   before(async () => {
     basicInvite = JSON.parse(await loadFixture("invite.json")) as Invite;
     locationInvite = JSON.parse(await loadFixture("invite-with-location.json")) as Invite;
-    datesPollInvite = JSON.parse(await loadFixture("invite-with-dates-poll.json")) as Invite;
+    datesPollInvite = JSON.parse(await loadFixture("dates-invite.json")) as Invite;
   });
 
   it("includes the party title", () => {
@@ -250,17 +250,25 @@ describe("formatInvite", () => {
 
   it("shows polls with date options formatted in party timezone", () => {
     const output = formatInvite(datesPollInvite, "http://localhost:3000");
-    assert.ok(output.includes("Which dates work for you?"), `Expected poll question in: ${output}`);
+    assert.ok(output.includes("Which date works best for you?"), `Expected poll question in: ${output}`);
     assert.ok(output.includes("dates"), `Expected poll kind in: ${output}`);
-    assert.ok(output.includes("poll_dates_001"), `Expected poll id in: ${output}`);
-    // The date options are ISO instants — should be shown in party timezone (America/Los_Angeles)
-    assert.ok(output.includes("Nov"), `Expected formatted date month in: ${output}`);
+    assert.ok(output.includes("231ad161-4501-4161-8902-6da99c0f7a5b"), `Expected poll id in: ${output}`);
+    assert.ok(output.includes("Oct"), `Expected formatted date month in: ${output}`);
     assert.ok(output.includes("Not answered yet"), `Expected unanswered status in: ${output}`);
   });
 
   it("shows Date TBD when starts_at is absent", () => {
     const output = formatInvite(datesPollInvite, "http://localhost:3000");
     assert.ok(output.includes("TBD"), `Expected TBD in: ${output}`);
+  });
+
+  it("shows server hint when present", () => {
+    const output = formatInvite(datesPollInvite, "http://localhost:3000");
+    assert.ok(output.includes("Hint:"), `Expected Hint: line in: ${output}`);
+    assert.ok(
+      output.includes("The date isn't set yet. Rank the dates you can make"),
+      `Expected hint text in: ${output}`,
+    );
   });
 
   it("warns on cross-origin action URLs", () => {
