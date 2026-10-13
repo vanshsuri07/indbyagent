@@ -336,8 +336,8 @@ Options:
     return 0;
   }
 
-  // Already set check
-  if (rankingMatches(targetPoll.your_ranking, rankingResult.kept)) {
+  // Already set check: if --note is given, always send because poll notes are not echoed back in invite doc
+  if (values.note === undefined && rankingMatches(targetPoll.your_ranking, rankingResult.kept)) {
     if (values.json) {
       console.log(getRes.raw);
       return 0;

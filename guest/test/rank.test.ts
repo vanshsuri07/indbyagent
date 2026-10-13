@@ -566,6 +566,83 @@ describe("indby-guest rank command", () => {
     }
   });
 
+  it("same ranking + new --note sends one POST", async () => {
+    const server = await createFakeServer({
+      polls: [
+        {
+          id: "231ad161-4501-4161-8902-6da99c0f7a5b",
+          kind: "dates",
+          q: "Which date works best for you?",
+          options: [
+            "2026-10-16T15:41:00.000Z",
+            "2026-10-22T15:41:00.000Z",
+            "2026-10-29T15:42:00.000Z",
+          ],
+          timezone: "Asia/Calcutta",
+          your_ranking: [
+            "2026-10-22T15:41:00.000Z",
+            "2026-10-29T15:42:00.000Z",
+          ],
+        },
+      ],
+    });
+
+    const out = captureOutput();
+    try {
+      const code = await rankCommand([
+        `${server.url}/i/${server.state.token}`,
+        "--ics",
+        meIcsPath,
+        "--note",
+        "Free after 5pm",
+      ]);
+      assert.equal(code, 0);
+      assert.equal(server.state.postCount, 1);
+      assert.equal(server.state.lastPostBody?.note, "Free after 5pm");
+      assert.ok(!out.getLogs().includes("Already set"));
+    } finally {
+      out.restore();
+      await server.close();
+    }
+  });
+
+  it("same ranking and no --note sends none", async () => {
+    const server = await createFakeServer({
+      polls: [
+        {
+          id: "231ad161-4501-4161-8902-6da99c0f7a5b",
+          kind: "dates",
+          q: "Which date works best for you?",
+          options: [
+            "2026-10-16T15:41:00.000Z",
+            "2026-10-22T15:41:00.000Z",
+            "2026-10-29T15:42:00.000Z",
+          ],
+          timezone: "Asia/Calcutta",
+          your_ranking: [
+            "2026-10-22T15:41:00.000Z",
+            "2026-10-29T15:42:00.000Z",
+          ],
+        },
+      ],
+    });
+
+    const out = captureOutput();
+    try {
+      const code = await rankCommand([
+        `${server.url}/i/${server.state.token}`,
+        "--ics",
+        meIcsPath,
+      ]);
+      assert.equal(code, 0);
+      assert.equal(server.state.postCount, 0);
+      assert.ok(out.getLogs().includes("Already set, nothing sent"));
+    } finally {
+      out.restore();
+      await server.close();
+    }
+  });
+
   it("passes custom --idempotency-key through to the server", async () => {
     const server = await createFakeServer();
     const out = captureOutput();
