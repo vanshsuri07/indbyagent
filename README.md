@@ -125,6 +125,44 @@ curl -s -X POST …/vendors/<rid>/payments/<aid> -H "authorization: Bearer $HOST
 
 Providers: `manual` (default) records the intent and tells the host how to pay the vendor directly; the host marks it settled (`PATCH /api/host/parties/<id>/payments/<attemptId>`). `stripe` charges a payment method the host saved with Stripe (`payment_method_ref`, optionally `cus_…:pm_…`), off-session, when `STRIPE_SECRET_KEY` is set; 3-D Secure comes back as `requires_action` for the host to finish in Stripe. This code never sees card details.
 
+## Guest agent
+
+`indby-guest` is a strict, zero-dependency CLI (using only `ical.js`) that reads and answers invites on behalf of a guest.
+
+### Build and run
+```bash
+cd guest && npm install && npm run build
+```
+
+### Commands
+```bash
+# Read an invite and display details, polls, and available actions
+node dist/cli.js read https://indbyagent.com/i/<token>
+
+# RSVP to a party with optional headcount, note, and dietary restrictions
+node dist/cli.js rsvp https://indbyagent.com/i/<token> --status yes --party 2
+
+# Rank date poll options against a calendar file, dropping conflicts
+node dist/cli.js rank https://indbyagent.com/i/<token> --ics calendar.ics
+```
+
+### Idempotency
+Re-running any command is always safe. The CLI performs a read-before-write check and exits with "Already set" if the server already reflects your requested RSVP or ranking. Every POST includes an `Idempotency-Key` (user-supplied or derived from the request payload and current invite state), ensuring retries never produce duplicate writes.
+
+### Calendar integration (.ics)
+The `rank` command evaluates your `.ics` calendar with `ical.js`, dropping clashing options and ranking remaining dates soonest-first. It assumes a 120-minute event duration when the host omits an end time, treats floating calendar times as matching the party's local timezone, and treats all-day events as conflicting with any party on that day.
+
+### Tests
+```bash
+cd guest
+npm run test:unit         # 120 unit tests with fake server fixtures
+npm run test:integration  # End-to-end tests against local app (skips if offline)
+npm test                  # Run both unit and integration tests
+```
+
+### Privacy
+The CLI only contacts the origin of the invite URL provided on the command line; it never makes requests to any external server, third-party API, or analytics service.
+
 ## Next
 - Inbound vendor email: route replies by sender or the `[IndbyAgent V-xxxx]` subject tag into a `quote` parser (fast path, then one Sonnet 5.5 call with verbatim evidence), with the review queue on low confidence.
 - Board card for vendor requests and payments; planner hook (`request_quotes`).
