@@ -1,13 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
+import { localDb } from "./local-db";
+import { fallback } from "./fallback";
 
 // Service-role client for server code only. Guest access is authorized by the
 // per-guest token (checked in code), host access by HOST_SECRET. Never import
 // this from a client component.
-export const db = createClient(
+export const db = (fallback
+  ? localDb
+  : createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false, autoRefreshToken: false } },
-);
+));
 
 export type RsvpStatus = "pending" | "yes" | "no" | "maybe" | "needs_human";
 export type ByKind = "agent" | "human" | "host";
