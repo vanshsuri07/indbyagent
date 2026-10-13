@@ -52,7 +52,12 @@ export async function seedParty(
 
   if (!partyRes.ok) {
     const errText = await partyRes.text();
-    throw new Error(`Failed to create party: ${partyRes.status} ${errText}`);
+    const hint = partyRes.status >= 500
+      ? "\nHint: The app's local test mode may be broken (no in-memory db)."
+      : "";
+    const msg = `Failed to create party: ${partyRes.status} ${errText}${hint}`;
+    console.error(msg);
+    throw new Error(msg);
   }
 
   const partyData = (await partyRes.json()) as {
@@ -75,7 +80,12 @@ export async function seedParty(
 
   if (!guestRes.ok) {
     const errText = await guestRes.text();
-    throw new Error(`Failed to create guest: ${guestRes.status} ${errText}`);
+    const hint = guestRes.status >= 500
+      ? "\nHint: The app's local test mode may be broken (no in-memory db)."
+      : "";
+    const msg = `Failed to create guest: ${guestRes.status} ${errText}${hint}`;
+    console.error(msg);
+    throw new Error(msg);
   }
 
   const guestData = (await guestRes.json()) as {

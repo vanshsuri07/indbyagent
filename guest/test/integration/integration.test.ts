@@ -8,7 +8,7 @@
  * - Spawns the built CLI (node dist/cli.js) as a child process
  * - Each test seeds its own party so runs do not interfere
  */
-import { describe, it, before } from "node:test";
+import { describe, it, before, after } from "node:test";
 import * as assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
@@ -17,6 +17,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { seedParty } from "./seed.js";
+import { probeServer, decideProbe } from "./probe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliEntry = path.resolve(__dirname, "../../../dist/cli.js");
@@ -24,6 +25,8 @@ const baseUrl = (process.env.INDBY_BASE_URL || "http://localhost:3000").replace(
 const SKIP_MESSAGE = "start the app with `npm run dev` in the repo root, then re-run";
 
 let serverAvailable = false;
+let ranCount = 0;
+let skippedCount = 0;
 
 function runCli(
   args: string[],
@@ -52,21 +55,48 @@ function toIcsUtc(d: Date): string {
 
 describe("Integration tests against local app", () => {
   before(async () => {
-    try {
-      const res = await fetch(`${baseUrl}/api/host/parties`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      serverAvailable = res.ok;
-    } catch {
+    const probe = await probeServer(baseUrl);
+    const decision = decideProbe(probe);
+    if (decision === "skip") {
       serverAvailable = false;
+      return;
     }
+    serverAvailable = true;
+
+    // Warm up Next.js routes with a 60s timeout each to tolerate cold route compilation
+    const warmup = await seedParty(baseUrl);
+    await fetch(`${warmup.inviteUrl}.json`, { signal: AbortSignal.timeout(60000) });
+    await fetch(`${warmup.inviteUrl}/rsvp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "yes",
+        by: { kind: "agent", name: "warmup" },
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    await fetch(`${warmup.inviteUrl}/polls/${warmup.poll.id}/rank`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ranking: warmup.poll.options.slice(0, 2),
+        by: { kind: "agent", name: "warmup" },
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+  });
+
+  after(() => {
+    console.log(`integration: ${ranCount} ran, ${skippedCount} skipped`);
   });
 
   it("1. read: output contains party title, party-timezone time, and open poll", async (t) => {
     if (!serverAvailable) {
+      skippedCount++;
       t.skip(SKIP_MESSAGE);
       return;
     }
+    ranCount++;
 
     const { party, poll, inviteUrl } = await seedParty(baseUrl);
     const res = await runCli(["read", inviteUrl]);
@@ -79,9 +109,11 @@ describe("Integration tests against local app", () => {
 
   it("2. rsvp idempotency: first sends, second says 'Already set', yes->no->yes, key mismatch warning, party above max prints schema", async (t) => {
     if (!serverAvailable) {
+      skippedCount++;
       t.skip(SKIP_MESSAGE);
       return;
     }
+    ranCount++;
 
     const { inviteUrl } = await seedParty(baseUrl);
 
@@ -158,9 +190,11 @@ describe("Integration tests against local app", () => {
 
   it("3. rank with a clash: drops clashing option, ranks rest soonest first, server stores ranking, rerun says 'Already set'", async (t) => {
     if (!serverAvailable) {
+      skippedCount++;
       t.skip(SKIP_MESSAGE);
       return;
     }
+    ranCount++;
 
     const { poll, inviteUrl } = await seedParty(baseUrl);
     const sortedOptions = [...poll.options].sort(
@@ -220,6 +254,7 @@ describe("Integration tests against local app", () => {
   });
 
   it("4. a /j/ join link and a token with a bad shape are rejected without any request being sent", async () => {
+    ranCount++;
     // Both are client-side validation checks; no server request is ever sent
     const joinRes = await runCli(["read", `${baseUrl}/j/samplecode`]);
     assert.equal(joinRes.code, 2, "Expected exit 2 for join link");
