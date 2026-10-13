@@ -29,6 +29,8 @@ export interface FetchResult {
 export interface FetchError {
   ok: false;
   message: string;
+  status?: number;
+  body?: unknown;
 }
 
 /**
@@ -71,16 +73,16 @@ export async function fetchInvite(
     // Try to read a JSON error body with a "message" or "error" field.
     if (contentType.includes("application/json")) {
       try {
-        const body = await res.json() as Record<string, unknown>;
+        const body = (await res.json()) as Record<string, unknown>;
         const msg = body.error ?? body.message;
         if (typeof msg === "string") {
-          return { ok: false, message: msg };
+          return { ok: false, status: res.status, message: msg, body };
         }
       } catch {
         // Fall through to generic message.
       }
     }
-    return { ok: false, message: `Server returned ${res.status} ${res.statusText}` };
+    return { ok: false, status: res.status, message: `Server returned ${res.status} ${res.statusText}` };
   }
 
   if (!contentType.includes("application/json")) {

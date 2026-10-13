@@ -31,6 +31,9 @@ function createFakeServer(options: {
   partySizeMax?: number;
   initialRsvp?: Record<string, unknown>;
   actionRsvpOrigin?: string;
+  schema?: Record<string, unknown> | null;
+  postStatus?: number;
+  postResponseBody?: unknown;
 } = {}): Promise<{
   url: string;
   state: FakeServerState;
@@ -53,6 +56,15 @@ function createFakeServer(options: {
 
       const buildInvite = (origin: string) => {
         const actionOrigin = state.actionRsvpOrigin ?? origin;
+        const schemaObj =
+          options.schema === null
+            ? undefined
+            : (options.schema ?? {
+                rsvp: {
+                  status: "yes|no|maybe|needs_human",
+                  party_size: `int<=${state.partySizeMax}`,
+                },
+              });
         return {
           indbyagent: "0.1",
           party: {
@@ -70,9 +82,7 @@ function createFakeServer(options: {
             message_host: `POST ${actionOrigin}/i/${state.token}/message`,
             calendar: `GET ${actionOrigin}/i/${state.token}.ics`,
           },
-          schema: {
-            rsvp: { status: "yes|no|maybe|needs_human" },
-          },
+          schema: schemaObj,
         };
       };
 
@@ -95,6 +105,12 @@ function createFakeServer(options: {
         req.on("end", () => {
           const body = JSON.parse(bodyRaw) as Record<string, unknown>;
           state.lastPostBody = body;
+
+          if (options.postStatus !== undefined) {
+            res.writeHead(options.postStatus, { "content-type": "application/json" });
+            res.end(JSON.stringify(options.postResponseBody ?? { error: "error" }));
+            return;
+          }
 
           const idemKey = req.headers["idempotency-key"] as string | undefined;
 
@@ -417,6 +433,9 @@ describe("rsvp command", () => {
       assert.equal(code, 1);
       const out = errs.join("\n");
       assert.ok(out.includes("party_size exceeds max of 1"), `Expected error text in: ${out}`);
+      assert.ok(out.includes("Expected for rsvp:"), `Expected schema header in: ${out}`);
+      assert.ok(out.includes("party_size:"), `Expected party_size in schema: ${out}`);
+      assert.ok(out.includes("Your request:"), `Expected Your request in: ${out}`);
     } finally {
       console.error = origErr;
       await fake.close();
@@ -592,6 +611,211 @@ describe("rsvp command", () => {
     } finally {
       console.error = origErr;
       await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it("business-rule 400 with option list prints options one per line", async () => {
+    const fake = await createFakeServer({
+      postStatus: 400,
+      postResponseBody: {
+        error: "ranking entries must be options: optA, optB, optC",
+      },
+    });
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `${fake.url}/i/${fake.state.token}`,
+        "--status",
+        "yes",
+      ]);
+      assert.equal(code, 1);
+      const out = errs.join("\n");
+      assert.ok(out.includes("Options:"), `Expected Options: in: ${out}`);
+      assert.ok(out.includes("- optA"), `Expected optA in: ${out}`);
+      assert.ok(out.includes("- optB"), `Expected optB in: ${out}`);
+      assert.ok(out.includes("- optC"), `Expected optC in: ${out}`);
+      assert.ok(out.includes("Expected for rsvp:"), `Expected schema in: ${out}`);
+    } finally {
+      console.error = origErr;
+      await fake.close();
+    }
+  });
+
+  it("Zod 400 with issues prints each issue and matching keys under Fields to fix", async () => {
+    const fake = await createFakeServer({
+      postStatus: 400,
+      postResponseBody: {
+        error: "invalid",
+        issues: [
+          "party_size: Expected number, received string",
+          "note: String must contain at most 500 character(s)",
+        ],
+      },
+    });
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `${fake.url}/i/${fake.state.token}`,
+        "--status",
+        "yes",
+        "--party",
+        "2",
+      ]);
+      assert.equal(code, 1);
+      const out = errs.join("\n");
+      assert.ok(out.includes("Server rejected the request (400): invalid"), `Expected 400 invalid in: ${out}`);
+      assert.ok(out.includes("Fields to fix:"), `Expected Fields to fix in: ${out}`);
+      assert.ok(out.includes("party_size:"), `Expected party_size under Fields to fix in: ${out}`);
+      assert.ok(out.includes("Issues:"), `Expected Issues: in: ${out}`);
+      assert.ok(out.includes("party_size: Expected number, received string"), `Expected party_size issue in: ${out}`);
+      assert.ok(out.includes("note: String must contain at most 500 character(s)"), `Expected note issue in: ${out}`);
+      assert.ok(out.includes("Your request:"), `Expected Your request in: ${out}`);
+    } finally {
+      console.error = origErr;
+      await fake.close();
+    }
+  });
+
+  it("404 says the token is wrong or revoked with no schema and never prints the token", async () => {
+    const fake = await createFakeServer();
+    const badToken = "NONEXISTENT_REVOKED_TOKEN_1234";
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `${fake.url}/i/${badToken}`,
+        "--status",
+        "yes",
+      ]);
+      assert.equal(code, 1);
+      const out = errs.join("\n");
+      assert.ok(
+        out.includes("The invite token is wrong or revoked"),
+        `Expected revoked message in: ${out}`,
+      );
+      assert.ok(!out.includes(badToken), "Must never print the invite token");
+      assert.ok(!out.includes("Expected for rsvp:"), "Must not print schema on 404");
+    } finally {
+      console.error = origErr;
+      await fake.close();
+    }
+  });
+
+  it("500 prints cause and retrying hint with no schema", async () => {
+    const fake = await createFakeServer({
+      postStatus: 500,
+      postResponseBody: { error: "internal database connection failure" },
+    });
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `${fake.url}/i/${fake.state.token}`,
+        "--status",
+        "yes",
+      ]);
+      assert.equal(code, 1);
+      const out = errs.join("\n");
+      assert.ok(out.includes("Server error (500)"), `Expected 500 error in: ${out}`);
+      assert.ok(out.includes("Retrying may help"), `Expected retrying hint in: ${out}`);
+      assert.ok(!out.includes("Expected for rsvp:"), "Must not print schema on 500");
+    } finally {
+      console.error = origErr;
+      await fake.close();
+    }
+  });
+
+  it("network failure prints cause and retrying hint with no schema", async () => {
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        "http://127.0.0.1:1/i/TESTTOKEN_abc123def456",
+        "--status",
+        "yes",
+      ]);
+      assert.equal(code, 1);
+      const out = errs.join("\n");
+      assert.ok(out.includes("Retrying may help"), `Expected retrying hint in: ${out}`);
+      assert.ok(!out.includes("Expected for rsvp:"), "Must not print schema on network error");
+    } finally {
+      console.error = origErr;
+    }
+  });
+
+  it("--json outputs single JSON object with status, error, schema_piece, request on 400", async () => {
+    const fake = await createFakeServer({
+      postStatus: 400,
+      postResponseBody: { error: "party_size exceeds max of 1" },
+    });
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `${fake.url}/i/${fake.state.token}`,
+        "--status",
+        "yes",
+        "--party",
+        "3",
+        "--json",
+      ]);
+      assert.equal(code, 1);
+      const out = logs.join("\n");
+      const parsed = JSON.parse(out);
+      assert.equal(parsed.status, 400);
+      assert.equal(parsed.error, "party_size exceeds max of 1");
+      assert.ok(parsed.schema_piece, "Expected schema_piece in JSON");
+      assert.equal(parsed.request.status, "yes");
+      assert.equal(parsed.request.party_size, 3);
+    } finally {
+      console.log = origLog;
+      await fake.close();
+    }
+  });
+
+  it("missing schema block prints server error and states schema piece was omitted", async () => {
+    const fake = await createFakeServer({
+      schema: null,
+      postStatus: 400,
+      postResponseBody: { error: "party_size exceeds max of 1" },
+    });
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const code = await rsvpCommand([
+        `${fake.url}/i/${fake.state.token}`,
+        "--status",
+        "yes",
+        "--party",
+        "3",
+      ]);
+      assert.equal(code, 1);
+      const out = errs.join("\n");
+      assert.ok(out.includes("party_size exceeds max of 1"), `Expected error in: ${out}`);
+      assert.ok(
+        out.includes("omitted by the server"),
+        `Expected omitted schema note in: ${out}`,
+      );
+      assert.ok(!out.includes("Expected for rsvp:"), "Must not print schema piece lines");
+    } finally {
+      console.error = origErr;
+      await fake.close();
     }
   });
 });

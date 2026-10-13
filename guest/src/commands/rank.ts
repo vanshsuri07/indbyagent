@@ -178,7 +178,13 @@ Options:
   // Fetch current invite document
   const getRes = await fetchInvite(parsed.jsonUrl, timeoutMs);
   if (!getRes.ok) {
-    console.error(getRes.message);
+    printServerError({
+      command: "rank",
+      status: getRes.status,
+      body: getRes.body ?? { error: getRes.message },
+      networkError: getRes.status ? undefined : getRes.message,
+      json: values.json,
+    });
     return 1;
   }
   const currentInvite = getRes.invite;
@@ -345,10 +351,23 @@ Options:
   const postRes = await postRank(postUrl, body, idempotencyKey, timeoutMs);
   if (!postRes.ok) {
     if (postRes.kind === "http") {
-      printServerError(postUrl, postRes.status, postRes.body);
+      printServerError({
+        command: "rank",
+        status: postRes.status,
+        body: postRes.body,
+        schema: currentInvite.schema,
+        request: body,
+        json: values.json,
+      });
       return 1;
     }
-    console.error(postRes.message);
+    printServerError({
+      command: "rank",
+      networkError: postRes.message,
+      schema: currentInvite.schema,
+      request: body,
+      json: values.json,
+    });
     return 1;
   }
 
