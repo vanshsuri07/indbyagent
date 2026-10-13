@@ -39,6 +39,50 @@ export interface FetchError {
  * Returns the parsed Invite on success or a one-line error message
  * on failure. Never throws.
  */
+function formatNetworkErrorMessage(targetUrl: string, err: unknown): string {
+  let hostPort = "";
+  try {
+    const u = new URL(targetUrl);
+    const defaultPort = u.protocol === "https:" ? "443" : "80";
+    hostPort = u.port ? `${u.hostname}:${u.port}` : `${u.hostname}:${defaultPort}`;
+  } catch {
+    // fallback
+  }
+
+  let causeCode = "";
+  if (err && typeof err === "object") {
+    const cause = (err as { cause?: unknown }).cause;
+    if (cause && typeof cause === "object") {
+      const code = (cause as { code?: unknown }).code;
+      if (typeof code === "string") {
+        causeCode = code;
+      } else {
+        const msg = (cause as { message?: unknown }).message;
+        if (typeof msg === "string") {
+          const m = msg.match(/\b(ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b/);
+          if (m) causeCode = m[1];
+        }
+      }
+    }
+    if (!causeCode) {
+      const code = (err as { code?: unknown }).code;
+      if (typeof code === "string") causeCode = code;
+    }
+  }
+
+  const errMessage = err instanceof Error ? err.message : String(err);
+  if (hostPort && causeCode) {
+    return `Network error connecting to ${hostPort} (${causeCode}): ${errMessage}`;
+  }
+  if (hostPort) {
+    return `Network error connecting to ${hostPort}: ${errMessage}`;
+  }
+  if (causeCode) {
+    return `Network error (${causeCode}): ${errMessage}`;
+  }
+  return `Network error: ${errMessage}`;
+}
+
 export async function fetchInvite(
   jsonUrl: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
@@ -60,11 +104,7 @@ export async function fetchInvite(
         message: `Request timed out after ${timeoutMs / 1000}s (the server may still be starting or compiling)`,
       };
     }
-    if (err instanceof TypeError) {
-      // fetch throws TypeError for network errors (DNS, connection refused, etc.)
-      return { ok: false, message: `Network error: ${err.message}` };
-    }
-    return { ok: false, message: `Fetch failed: ${err instanceof Error ? err.message : String(err)}` };
+    return { ok: false, message: formatNetworkErrorMessage(jsonUrl, err) };
   }
 
   const contentType = res.headers.get("content-type") ?? "";
@@ -181,16 +221,13 @@ async function postJson(
       return {
         ok: false,
         kind: "network",
-        message: `Request timed out after ${timeoutMs / 1000}s (the server may still be starting or compiling). Retrying is safe when the idempotency key is unchanged${idempotencyKey ? ` (--idempotency-key ${idempotencyKey})` : ""}.`,
+        message: `Request timed out after ${timeoutMs / 1000}s (the server may still be starting or compiling). Retrying is safe when the idempotency key is unchanged${idempotencyKey ? ` (--idempotency-key ${idempotencyKey})` : ""}`,
       };
-    }
-    if (err instanceof TypeError) {
-      return { ok: false, kind: "network", message: `Network error: ${err.message}` };
     }
     return {
       ok: false,
       kind: "network",
-      message: `Fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      message: formatNetworkErrorMessage(endpointUrl, err),
     };
   }
 

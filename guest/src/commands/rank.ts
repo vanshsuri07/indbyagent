@@ -286,13 +286,8 @@ Options:
       );
       return 1;
     }
-    console.error("All options clash with existing events on your calendar:");
-    for (const d of rankingResult.dropped) {
-      const [optFormatted, effTz] = formatTime(d.option, partyTz);
-      console.error(`  - ${optFormatted} (${effTz}): ${d.reason}`);
-    }
     console.error(
-      "No options can be ranked. You can message the host to propose alternatives (POST /i/<token>/message).",
+      "All options clash with existing events on your calendar; no options can be ranked. You can message the host to propose alternatives (POST /i/<token>/message).",
     );
     return 1;
   }

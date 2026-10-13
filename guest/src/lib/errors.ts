@@ -128,9 +128,11 @@ export function printServerError(
 
   // 5xx, timeouts and network errors: print cause and retrying hint; no schema
   if (status >= 500 || opts.networkError) {
-    let errorWithHint = errorMessage;
-    if (!errorWithHint.toLowerCase().includes("retrying may help")) {
-      errorWithHint = `${errorMessage}. Retrying may help.`;
+    let errorWithHint = errorMessage.replace(/\.+$/, "");
+    if (!errorWithHint.toLowerCase().includes("retrying may help") && !errorWithHint.toLowerCase().includes("retrying is safe")) {
+      errorWithHint = `${errorWithHint}. Retrying may help.`;
+    } else {
+      errorWithHint = `${errorWithHint}.`;
     }
     const fullError = status >= 500 ? `Server error (${status}): ${errorWithHint}` : errorWithHint;
     if (opts.json) {

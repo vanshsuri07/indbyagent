@@ -614,7 +614,10 @@ describe("read command end-to-end", () => {
       const code = await readCommand([`${serverUrl}/i/NOTFOUND_token_1234567890`]);
       assert.equal(code, 1);
       const output = errs.join("\n");
-      assert.ok(output.includes("not found"), `Expected 'not found' in: ${output}`);
+      assert.ok(
+        output.includes("Invite not found (the token in the URL may be wrong or revoked)"),
+        `Expected 'Invite not found (the token in the URL may be wrong or revoked)' in: ${output}`,
+      );
     } finally {
       console.error = origErr;
     }

@@ -420,6 +420,10 @@ describe("indby-guest rank command", () => {
       assert.ok(out.getLogs().includes("Ranking:  none"));
       assert.ok(out.getErrors().includes("All options clash with existing events"));
       assert.ok(out.getErrors().includes("POST /i/<token>/message"));
+      assert.ok(
+        !out.getErrors().includes("Doctor Appointment"),
+        "Reasons must not be repeated a second time in error output",
+      );
     } finally {
       out.restore();
       await server.close();

@@ -608,6 +608,7 @@ describe("rsvp command", () => {
         outErr.includes("Retrying is safe when the idempotency key is unchanged"),
         `Expected idempotency retry safety message in: ${outErr}`,
       );
+      assert.ok(!outErr.includes(".."), `Must not contain doubled period in timeout message: ${outErr}`);
     } finally {
       console.error = origErr;
       await new Promise<void>((r) => server.close(() => r()));
@@ -742,12 +743,14 @@ describe("rsvp command", () => {
 
     try {
       const code = await rsvpCommand([
-        "http://127.0.0.1:1/i/TESTTOKEN_abc123def456",
+        "http://127.0.0.1:59999/i/TESTTOKEN_abc123def456",
         "--status",
         "yes",
       ]);
       assert.equal(code, 1);
       const out = errs.join("\n");
+      assert.ok(out.includes("127.0.0.1:59999"), `Expected host:port in: ${out}`);
+      assert.ok(out.includes("ECONNREFUSED"), `Expected ECONNREFUSED in: ${out}`);
       assert.ok(out.includes("Retrying may help"), `Expected retrying hint in: ${out}`);
       assert.ok(!out.includes("Expected for rsvp:"), "Must not print schema on network error");
     } finally {

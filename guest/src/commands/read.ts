@@ -60,6 +60,10 @@ Options:
   // Fetch
   const result = await fetchInvite(parsed.jsonUrl, timeoutMs);
   if (!result.ok) {
+    if (result.status === 404) {
+      console.error("Invite not found (the token in the URL may be wrong or revoked)");
+      return 1;
+    }
     console.error(result.message);
     return 1;
   }
