@@ -127,7 +127,7 @@ Providers: `manual` (default) records the intent and tells the host how to pay t
 
 ## Guest agent
 
-`indby-guest` is a strict, zero-dependency CLI (using only `ical.js`) that reads and answers invites on behalf of a guest.
+`indby-guest` is a strict CLI with `ical.js` as its only runtime dependency. It reads and answers invites on behalf of a guest.
 
 ### Build and run
 ```bash
@@ -147,7 +147,7 @@ node dist/cli.js rank https://indbyagent.com/i/<token> --ics calendar.ics
 ```
 
 ### Idempotency
-Re-running any command is always safe. The CLI performs a read-before-write check and exits with "Already set" if the server already reflects your requested RSVP or ranking. Every POST includes an `Idempotency-Key` (user-supplied or derived from the request payload and current invite state), ensuring retries never produce duplicate writes.
+Re-running any command is always safe. The CLI performs a read-before-write check and exits with `Already set` if the server already reflects your requested RSVP or ranking. Every POST includes an `Idempotency-Key`(user-supplied or derived from the request payload and current invite state), ensuring retries never produce duplicate writes.
 
 ### Calendar integration (.ics)
 The `rank` command evaluates your `.ics` calendar with `ical.js`, dropping clashing options and ranking remaining dates soonest-first. It assumes a 120-minute event duration when the host omits an end time, treats floating calendar times as matching the party's local timezone, and treats all-day events as conflicting with any party on that day.
@@ -155,7 +155,7 @@ The `rank` command evaluates your `.ics` calendar with `ical.js`, dropping clash
 ### Tests
 ```bash
 cd guest
-npm run test:unit         # 120 unit tests with fake server fixtures
+npm run test:unit         # 133 unit tests with fake server fixtures
 npm run test:integration  # End-to-end tests against local app (skips if offline)
 npm test                  # Run both unit and integration tests
 ```
