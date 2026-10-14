@@ -33,4 +33,6 @@ export type GuestState = {
 };
 export type PollKind = "preference" | "dates";
 export type Poll = { id: string; party_id: string; question: string; options: string[]; closes_at: string | null; status: "open" | "closed"; kind: PollKind };
+export const pollIsOpen = (p: Poll, now = Date.now()) =>
+  p.status === "open" && (!p.closes_at || Date.parse(p.closes_at) > now);
 export type PollAnswer = { poll_id: string; guest_id: string; choice: string; ranking: string[] | null; note: string | null; by_kind: ByKind; by_name: string | null; channel: Channel; created_at: string };

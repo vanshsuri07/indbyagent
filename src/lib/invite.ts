@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db, type Guest, type GuestState, type Party, type Poll, type PollAnswer, type ByKind, type Channel } from "./db";
 import { hashToken, looksLikeToken, siteUrl } from "./token";
-
+import {pollIsOpen} from "./db";
 export const SPEC_VERSION = "0.1";
 
 // ---------- lookup ----------
@@ -22,7 +22,7 @@ export async function loadInvite(token: string): Promise<InviteCtx | null> {
   // "preference" polls only to guests who said yes.
   let polls: Poll[] = [], answers: PollAnswer[] = [];
   const { data: p } = await db.from("polls").select("*").eq("party_id", party.id).eq("status", "open").order("created_at");
-  const open = (p ?? []) as Poll[];
+  const open = ((p ?? []) as Poll[]).filter((x) => pollIsOpen(x));
   polls = open.filter((x) => x.kind === "dates" || state.status === "yes");
   const locked_polls = open.length - polls.length;
   if (polls.length) {
@@ -184,7 +184,11 @@ export async function writeRsvp(ctx: InviteCtx, body: z.infer<typeof RsvpBody>, 
 
 export async function writePollAnswer(ctx: InviteCtx, pollId: string, body: z.infer<typeof PollBody>, meta: WriteMeta) {
   const poll = ctx.polls.find((p) => p.id === pollId);
-  if (!poll) return { error: "poll not open for this guest (RSVP yes first, and check the id)" };
+  if (!poll) {
+  return {
+    error: "poll not available: it may be closed, you may need to RSVP yes first, or the id is wrong"
+  };
+}
   if (poll.kind === "dates") return { error: "this is a ranked date poll; POST /polls/{id}/rank with {ranking:[...]}" };
   const choice = poll.options.find((o) => o.toLowerCase() === body.choice.toLowerCase());
   if (!choice) return { error: `choice must be one of: ${poll.options.join(", ")}` };
@@ -199,7 +203,11 @@ export async function writePollAnswer(ctx: InviteCtx, pollId: string, body: z.in
 
 export async function writePollRanking(ctx: InviteCtx, pollId: string, body: z.infer<typeof RankBody>, meta: WriteMeta) {
   const poll = ctx.polls.find((p) => p.id === pollId);
-  if (!poll) return { error: "poll not open for this guest (check the id)" };
+  if (!poll) {
+  return {
+    error: "poll not available: it may be closed, or the id is wrong"
+  };
+}
   if (poll.kind !== "dates") return { error: "this poll takes a single choice; POST /polls/{id} with {choice}" };
   const ranking: string[] = [];
   for (const r of body.ranking) {
