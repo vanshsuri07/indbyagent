@@ -14,6 +14,9 @@ export interface SeedResult {
     slug: string;
     title: string;
     timezone: string;
+    /** Bare calendar date (YYYY-MM-DD), the only shape the server accepts. */
+    rsvp_by: string;
+    location: string;
   };
   poll: {
     id: string;
@@ -40,12 +43,24 @@ export async function seedParty(
   const d2 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 15, 18, 0, 0));
   const d3 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 20, 18, 0, 0));
 
+  // A deadline and a location, so the seeded party is a *complete* document of the
+  // shape the server really emits. rsvp_by must be a bare YYYY-MM-DD: the server
+  // rejects anything else (src/lib/host.ts), and the CLI's date formatting depends
+  // on that contract — leaving it out is how the "wrong RSVP deadline" bug shipped.
+  const rsvpBy = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 3),
+  ).toISOString().slice(0, 10);
+  const location = "Pier 27, San Francisco";
+
   const partyRes = await fetch(`${normalizedBase}/api/host/parties`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       title: `Integration Party ${Date.now()}`,
       timezone: "America/Los_Angeles",
+      location,
+      details: "Rooftop, bring a layer.",
+      rsvp_by: rsvpBy,
       backup_dates: [d1.toISOString(), d2.toISOString(), d3.toISOString()],
     }),
   });
@@ -61,7 +76,7 @@ export async function seedParty(
   }
 
   const partyData = (await partyRes.json()) as {
-    party: { id: string; slug: string; title: string; timezone: string };
+    party: { id: string; slug: string; title: string; timezone: string; rsvp_by: string; location: string };
     date_poll: { id: string; options: string[] };
   };
 

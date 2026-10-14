@@ -16,6 +16,7 @@ import type { NormalizedInviteUrl, InviteUrlError } from "../src/lib/invite-url.
 import {
   formatInvite,
   formatTime,
+  formatDateOnly,
   parseAction,
   formatCrossOriginWarning,
   getCrossOriginWarnings,
@@ -524,6 +525,120 @@ describe("timezone correctness", () => {
         delete process.env.TZ;
       }
     }
+  });
+});
+
+// ---------- rsvp_by: the date-only contract ----------
+
+describe("rsvp_by is a bare calendar date, not an instant", () => {
+  // The server only ever accepts rsvp_by as YYYY-MM-DD (src/lib/host.ts), so this
+  // field must never be moved through a timezone.
+  //
+  // Regression: it used to be run through formatTime(), which parses a bare date
+  // as UTC midnight. In any timezone behind UTC that printed the *previous* day
+  // plus a clock time ("Tue, Oct 20, 2026, 5:00 PM PDT" for a Oct 21 deadline),
+  // i.e. the one number a guest acts on, wrong by a day, on every command.
+  const DEADLINE = "2026-10-21"; // a Wednesday
+  const EXPECTED = "RSVP by: Wed, Oct 21, 2026";
+
+  function rsvpByLine(output: string): string {
+    const line = output.split("\n").find((l) => l.startsWith("RSVP by:"));
+    assert.ok(line, `Expected an "RSVP by:" line in:\n${output}`);
+    return line;
+  }
+
+  function inviteFor(timezone: string, rsvp_by: string): Invite {
+    return {
+      indbyagent: "0.1",
+      party: { title: "Deadline Party", timezone, rsvp_by },
+      guest: { name: "leo", party_size_max: 1 },
+      rsvp: { status: "pending" },
+      actions: { rsvp: "POST http://localhost:3000/i/TESTTOKEN_abc123def456/rsvp" },
+      schema: {},
+    };
+  }
+
+  it("reads the server's own document without shifting the deadline", async () => {
+    // Shape captured from the real server: a bare date, US party timezone.
+    const invite = JSON.parse(await loadFixture("invite-us-deadline.json")) as Invite;
+    assert.equal(rsvpByLine(formatInvite(invite, "http://localhost:3000")), EXPECTED);
+  });
+
+  // Every timezone where the old instant-based formatting printed the day before.
+  // America/Los_Angeles is the server's own default party timezone.
+  for (const tz of [
+    "America/Los_Angeles",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Anchorage",
+    "Pacific/Honolulu",
+  ]) {
+    it(`does not move ${DEADLINE} a day back in ${tz}`, () => {
+      const line = rsvpByLine(formatInvite(inviteFor(tz, DEADLINE), "http://localhost:3000"));
+      assert.equal(line, EXPECTED, `Wrong deadline for ${tz}`);
+      assert.ok(!line.includes("Oct 20"), `Printed the previous day in ${tz}: ${line}`);
+      assert.ok(
+        !/\d{1,2}:\d{2}/.test(line),
+        `A calendar date must not gain a clock time in ${tz}: ${line}`,
+      );
+    });
+  }
+
+  it("is unchanged for UTC and timezones east of it", () => {
+    for (const tz of ["UTC", "Asia/Calcutta", "Asia/Tokyo", "Australia/Sydney"]) {
+      assert.equal(
+        rsvpByLine(formatInvite(inviteFor(tz, DEADLINE), "http://localhost:3000")),
+        EXPECTED,
+        `Wrong deadline for ${tz}`,
+      );
+    }
+  });
+
+  it("rejects the exact output the buggy version produced", () => {
+    const line = rsvpByLine(
+      formatInvite(inviteFor("America/Los_Angeles", DEADLINE), "http://localhost:3000"),
+    );
+    assert.ok(
+      !line.includes("Tue, Oct 20, 2026, 5:00 PM PDT"),
+      `The pre-fix rendering came back: ${line}`,
+    );
+  });
+
+  it("omits the line entirely when the host set no deadline", () => {
+    const invite = inviteFor("America/Los_Angeles", DEADLINE);
+    delete invite.party.rsvp_by;
+    assert.ok(!formatInvite(invite, "http://localhost:3000").includes("RSVP by:"));
+  });
+});
+
+describe("formatDateOnly", () => {
+  it("keeps the calendar day for a bare date in every timezone", () => {
+    for (const tz of [
+      "America/Los_Angeles",
+      "America/New_York",
+      "Pacific/Honolulu",
+      "Asia/Calcutta",
+      "UTC",
+    ]) {
+      assert.equal(formatDateOnly("2026-10-21", tz), "Wed, Oct 21, 2026", `Wrong for ${tz}`);
+    }
+  });
+
+  it("falls back to the party timezone for a full ISO instant", () => {
+    // 2026-10-21T23:00:00.000Z is Oct 21, 4:00 PM in America/Los_Angeles.
+    const formatted = formatDateOnly("2026-10-21T23:00:00.000Z", "America/Los_Angeles");
+    assert.ok(formatted.includes("Oct 21"), `Expected Oct 21 in: ${formatted}`);
+    assert.ok(formatted.includes("4:00"), `Expected 4:00 PM in: ${formatted}`);
+  });
+
+  it("never invents a date the host did not write", () => {
+    // "2026-02-30" passes the server's regex; Date would silently roll it to Mar 2.
+    assert.equal(formatDateOnly("2026-02-30", "America/Los_Angeles"), "2026-02-30");
+  });
+
+  it("handles a leap day", () => {
+    assert.equal(formatDateOnly("2028-02-29", "America/Los_Angeles"), "Tue, Feb 29, 2028");
   });
 });
 

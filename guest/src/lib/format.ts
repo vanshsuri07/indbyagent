@@ -60,6 +60,36 @@ export function formatTime(
 }
 
 /**
+ * Format a bare calendar date (`YYYY-MM-DD`) — a date with no time and no zone.
+ *
+ * `party.rsvp_by` is the only such field, and the server only ever accepts it in
+ * this shape (`src/lib/host.ts`: `rsvp_by: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)`).
+ * It must never be shifted through a timezone: `new Date("2026-10-21")` is UTC
+ * midnight, so rendering it in any timezone behind UTC yields the *previous*
+ * calendar day (in America/Los_Angeles: "Tue, Oct 20, 2026, 5:00 PM PDT" — a wrong
+ * day plus a clock time that is in no document). Anchor at midday UTC and render
+ * in UTC so the calendar day survives intact.
+ *
+ * Anything that is not a bare date (e.g. a full ISO instant) is delegated to
+ * `formatTime`, so if the server ever starts emitting a datetime it still renders.
+ */
+export function formatDateOnly(date: string, fallbackTimezone?: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return formatTime(date, fallbackTimezone)[0];
+  const parsed = new Date(`${date}T12:00:00Z`);
+  // Guard against a date that passes the shape check but is not a real day
+  // (e.g. "2026-02-30", which Date silently rolls over to Mar 2). Never invent a
+  // date the host did not write — show exactly what we were given instead.
+  if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return date;
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+/**
  * Format a time for a brief display (hour:minute only), e.g. for ends_at.
  */
 function formatTimeBrief(iso: string, timezone: string): string {
@@ -151,11 +181,9 @@ export function formatInvite(invite: Invite, inviteOrigin: string): string {
     lines.push(`Details: ${invite.party.details}`);
   }
 
-  // RSVP by
+  // RSVP by. A bare calendar date — never shifted through a timezone.
   if (invite.party.rsvp_by) {
-    const tz = invite.party.timezone;
-    const [rsvpByFormatted] = formatTime(invite.party.rsvp_by, tz);
-    lines.push(`RSVP by: ${rsvpByFormatted}`);
+    lines.push(`RSVP by: ${formatDateOnly(invite.party.rsvp_by, invite.party.timezone)}`);
   }
 
   // Guest

@@ -268,4 +268,47 @@ describe("Integration tests against local app", () => {
       `Expected bad token error: ${badTokenRes.stderr}`,
     );
   });
+
+  it("5. read: rsvp_by is a bare date from the live server and is never shifted by the party timezone", async (t) => {
+    if (!serverAvailable) {
+      skippedCount++;
+      t.skip(SKIP_MESSAGE);
+      return;
+    }
+    ranCount++;
+
+    const { party, inviteUrl } = await seedParty(baseUrl);
+
+    // Guard the guard: if the seeder stops sending a deadline this test proves nothing.
+    assert.ok(party.rsvp_by, "seedParty did not return rsvp_by, so this test is vacuous");
+    assert.match(
+      party.rsvp_by,
+      /^\d{4}-\d{2}-\d{2}$/,
+      `server did not return a bare-date rsvp_by: ${party.rsvp_by}`,
+    );
+
+    // The expected rendering, computed independently and anchored in UTC. A
+    // timezone-shifted rendering differs, so this is a real regression test.
+    const expected = new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${party.rsvp_by}T12:00:00Z`));
+
+    const res = await runCli(["read", inviteUrl]);
+    assert.equal(res.code, 0, `Expected exit 0, got ${res.code}: ${res.stderr}`);
+
+    const line = res.stdout.split("\n").find((l) => l.startsWith("RSVP by:"));
+    assert.ok(line, `Output missing an "RSVP by:" line: ${res.stdout}`);
+
+    // party.timezone is America/Los_Angeles: before the fix this printed the
+    // previous calendar day plus a clock time that is in no part of the document.
+    assert.equal(line, `RSVP by: ${expected}`, `Deadline shifted or malformed: "${line}"`);
+    assert.ok(
+      !/\d{1,2}:\d{2}/.test(line),
+      `A calendar date must not gain a clock time: "${line}"`,
+    );
+  });
 });
