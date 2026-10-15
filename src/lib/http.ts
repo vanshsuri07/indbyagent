@@ -29,5 +29,5 @@ export async function respondWithInvite(token: string, status = 200) {
 }
 
 export function idem(req: NextRequest): string | null {
-  return req.headers.get("idempotency-key");
+  return req.headers.get("idempotency-key")?.trim() || null;
 }

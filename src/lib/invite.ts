@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db, type Guest, type GuestState, type Party, type Poll, type PollAnswer, type ByKind, type Channel } from "./db";
 import { hashToken, looksLikeToken, siteUrl } from "./token";
 import {pollIsOpen} from "./db";
+import { insertOnce } from "./idempotency";
 export const SPEC_VERSION = "0.1";
 
 // ---------- lookup ----------
@@ -173,13 +174,11 @@ type WriteMeta = { channel: Channel; idempotency_key?: string | null; defaultKin
 export async function writeRsvp(ctx: InviteCtx, body: z.infer<typeof RsvpBody>, meta: WriteMeta) {
   const size = body.party_size ?? (body.status === "yes" ? 1 : 0);
   if (size > ctx.guest.party_size_max) return { error: `party_size exceeds max of ${ctx.guest.party_size_max}` };
-  const { error } = await db.from("rsvps").insert({
+  return insertOnce("rsvps", {
     guest_id: ctx.guest.id, status: body.status, party_size: size, dietary: body.dietary ?? [], note: body.note ?? null,
     by_kind: body.by?.kind ?? meta.defaultKind ?? "human", by_name: body.by?.name ?? null, channel: meta.channel,
     idempotency_key: meta.idempotency_key ?? null,
   });
-  if (error && error.code !== "23505") return { error: error.message };
-  return { ok: true };
 }
 
 export async function writePollAnswer(ctx: InviteCtx, pollId: string, body: z.infer<typeof PollBody>, meta: WriteMeta) {
@@ -192,13 +191,11 @@ export async function writePollAnswer(ctx: InviteCtx, pollId: string, body: z.in
   if (poll.kind === "dates") return { error: "this is a ranked date poll; POST /polls/{id}/rank with {ranking:[...]}" };
   const choice = poll.options.find((o) => o.toLowerCase() === body.choice.toLowerCase());
   if (!choice) return { error: `choice must be one of: ${poll.options.join(", ")}` };
-  const { error } = await db.from("poll_answers").insert({
-    poll_id: poll.id, guest_id: ctx.guest.id, choice, note: body.note ?? null,
-    by_kind: body.by?.kind ?? meta.defaultKind ?? "human", by_name: body.by?.name ?? null, channel: meta.channel,
-    idempotency_key: meta.idempotency_key ?? null,
-  });
-  if (error && error.code !== "23505") return { error: error.message };
-  return { ok: true };
+  return insertOnce("poll_answers", {
+  poll_id: poll.id, guest_id: ctx.guest.id, choice, note: body.note ?? null,
+  by_kind: body.by?.kind ?? meta.defaultKind ?? "human", by_name: body.by?.name ?? null, channel: meta.channel,
+  idempotency_key: meta.idempotency_key ?? null,
+});
 }
 
 export async function writePollRanking(ctx: InviteCtx, pollId: string, body: z.infer<typeof RankBody>, meta: WriteMeta) {
@@ -215,13 +212,11 @@ export async function writePollRanking(ctx: InviteCtx, pollId: string, body: z.i
     if (!o) return { error: `ranking entries must be options: ${poll.options.join(", ")}` };
     if (!ranking.includes(o)) ranking.push(o);
   }
-  const { error } = await db.from("poll_answers").insert({
-    poll_id: poll.id, guest_id: ctx.guest.id, choice: ranking[0], ranking, note: body.note ?? null,
-    by_kind: body.by?.kind ?? meta.defaultKind ?? "human", by_name: body.by?.name ?? null, channel: meta.channel,
-    idempotency_key: meta.idempotency_key ?? null,
-  });
-  if (error && error.code !== "23505") return { error: error.message };
-  return { ok: true };
+ return insertOnce("poll_answers", {
+  poll_id: poll.id, guest_id: ctx.guest.id, choice: ranking[0], ranking, note: body.note ?? null,
+  by_kind: body.by?.kind ?? meta.defaultKind ?? "human", by_name: body.by?.name ?? null, channel: meta.channel,
+  idempotency_key: meta.idempotency_key ?? null,
+});
 }
 
 export async function writeMessage(ctx: InviteCtx, body: z.infer<typeof MessageBody>, meta: WriteMeta) {

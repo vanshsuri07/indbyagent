@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadInvite, RsvpBody, writeRsvp } from "@/lib/invite";
 import { notFound, parseBody, respondWithInvite, idem } from "@/lib/http";
+import { failStatus } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const p = await parseBody(req, RsvpBody);
   if ("res" in p) return p.res;
   const r = await writeRsvp(ctx, p.data, { channel: "api", idempotency_key: idem(req), defaultKind: "agent" });
-  if ("error" in r) return NextResponse.json(r, { status: 400 });
+  if ("error" in r) return NextResponse.json(r, { status: failStatus(r) });
   return respondWithInvite(token);
 }
