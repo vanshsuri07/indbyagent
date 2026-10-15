@@ -159,10 +159,15 @@ describe("Integration tests against local app", () => {
     ]);
     assert.equal(runKey2.code, 1, "Expected exit 1 on key reuse mismatch");
     assert.ok(
-      runKey2.stderr.includes("different RSVP than requested") ||
-        runKey2.stderr.includes("ignored"),
-      `Expected mismatch warning in stderr: ${runKey2.stderr}`,
+    /Idempotency-Key was already\s*used/.test(runKey2.stderr) ||
+    runKey2.stderr.includes("different RSVP than requested") ||
+    runKey2.stderr.includes("ignored"),
+    `Expected mismatch warning in stderr: ${runKey2.stderr}`,
     );
+
+    // The rejected request must not have changed anything (runKey1 set it to "no").
+    const afterConflict = JSON.parse((await runCli(["read", inviteUrl, "--json"])).stdout);
+    assert.equal(afterConflict.rsvp.status, "no");
 
     // 2e: --party above party_size_max (max is 1) prints server message AND schema piece
     const runAboveMax = await runCli([

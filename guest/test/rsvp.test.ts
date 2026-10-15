@@ -256,6 +256,31 @@ describe("printServerError", () => {
       console.error = origErr;
     }
   });
+
+  it("warns when the server rejects a reused idempotency key", () => {
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+    try {
+      printServerError({
+        command: "rsvp",
+        status: 400,
+        body: {
+          error:
+            "This Idempotency-Key was alreadyused for a different request. Your change was NOT applied.",
+        },
+        schema: {
+          rsvp: {
+            status: "yes|no|maybe",
+          },
+        },
+        request: { status: "yes" },
+      });
+      assert.ok(errs.join("\n").includes("different RSVP than requested"));
+    } finally {
+      console.error = origErr;
+    }
+  });
 });
 
 // ---------- command integration tests ----------
