@@ -179,6 +179,21 @@ export function printServerError(
   }
 
   // Non-JSON formatting for 400
+
+  // Idempotency-key conflict: the server already recorded a different request
+  // under this key — surface a clear "different RSVP than requested" message.
+  if (/idempotency-key was already\s*used/i.test(errorMessage)) {
+    const conflictLines: string[] = [
+      `Server rejected the request (400): ${errorMessage}`,
+      `The server recorded a different RSVP than requested — the idempotency key was reused with a different body.`,
+    ];
+    if (opts.request !== undefined) {
+      conflictLines.push(`Your request: ${canonicalJson(opts.request)}`);
+    }
+    console.error(conflictLines.join("\n"));
+    return;
+  }
+
   const lines: string[] = [];
   lines.push(`Server rejected the request (400): ${errorMessage}`);
 
