@@ -1,7 +1,8 @@
 I tried to keep the change in server side as minimal as possible. So, you can easily undo it according to your requirements. Each finding here has been found by running different cases and seeing their behaviour.
 The fixes were tested against the local in-memory database setup.
 
-You asked me to stay inside guest/. I changed server files because these bugs directly affect agents using the guest flow, and I kept the change as small as I could. To drop it, revert commit [git revert e0e2c71 35bbd91 bd67d8e 372f25d 9b7de6b]. The guest/ fix works without it.
+You asked me to stay inside guest/. I changed server files because these bugs directly affect agents using the guest flow, and I kept the change as small as I could. To drop it, revert commit [git revert e0e2c71 35bbd91 bd67d8e 372f25d 9b7de6b
+]. The guest/ fix works without it.
 
 ## Finding-1: Reusing an Idempotency-Key with a different request failed silently
 
