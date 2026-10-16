@@ -1,5 +1,6 @@
 import { fmtWhen, inviteText, SPEC_VERSION, type InviteCtx } from "./invite";
 import { siteUrl } from "./token";
+import { computeInitialRanks } from "./poll-ranking";
 
 const esc = (s: string | null | undefined) =>
   (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -25,6 +26,71 @@ pre{margin:0;overflow-x:auto;background:#0f0e0f;border:1px solid var(--line);bor
 .small{font-size:13px;color:var(--mut)}a{color:var(--fg);text-decoration-color:var(--rose);text-underline-offset:3px}
 `;
 
+const SCRIPT = `
+(function() {
+  function initDatePollRankings() {
+    var forms = document.querySelectorAll('form[action*="/polls/"][action$="/rank"]');
+    forms.forEach(function(form) {
+      var selects = Array.from(form.querySelectorAll('select[name^="rank_"]'));
+      if (!selects.length) return;
+
+      selects.forEach(function(select) {
+        if (!select.dataset.prev) {
+          select.dataset.prev = select.value;
+        }
+
+        select.addEventListener('focus', function() {
+          this.dataset.prev = this.value;
+        });
+
+        select.addEventListener('change', function() {
+          var newRank = this.value;
+          var oldRank = this.dataset.prev;
+          if (newRank === oldRank) return;
+
+          if (newRank) {
+            var other = selects.find(function(s) {
+              return s !== select && s.value === newRank;
+            });
+
+            if (other) {
+              other.value = oldRank;
+              other.dataset.prev = oldRank;
+            }
+          }
+          this.dataset.prev = newRank;
+        });
+      });
+
+      form.addEventListener('submit', function() {
+        var rows = selects
+          .filter(function(s) { return s.value !== ''; })
+          .map(function(s) {
+            return { select: s, row: s.closest('label'), rank: Number(s.value) };
+          });
+        rows.sort(function(a, b) { return a.rank - b.rank; });
+        var submitRow = form.querySelector('.row');
+        rows.forEach(function(item) {
+          if (item.row && submitRow) {
+            form.insertBefore(item.row, submitRow);
+          }
+        });
+      });
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.__initDatePollRankings = initDatePollRankings;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDatePollRankings);
+  } else {
+    initDatePollRankings();
+  }
+})();
+`;
+
 export function renderInvitePage(ctx: InviteCtx | null, token: string): string {
   if (!ctx) {
     return page("Invite not found", `<div class="wrap"><div class="eyebrow">IndbyAgent</div><h1>This invite link isn't valid.</h1><p class="small">It may have been revoked or mistyped. Ask the host for a fresh link.</p></div>`);
@@ -39,9 +105,13 @@ export function renderInvitePage(ctx: InviteCtx | null, token: string): string {
     const a = answers.find((x) => x.poll_id === p.id);
     if (p.kind === "dates") {
       const mine = a?.ranking ?? (a?.choice ? [a.choice] : []);
-      return `<form class="card" method="post" action="${base}/polls/${p.id}/rank">
+      const initialRanks = computeInitialRanks(p.options, mine);
+      return `<form class="card date-poll-form" method="post" action="${base}/polls/${p.id}/rank">
       <div class="small">Date poll · rank the ones you can make, 1 = best</div><div style="font-weight:600;margin:2px 0 10px">${esc(p.question)}</div>
-      ${p.options.map((o) => `<label style="display:flex;gap:10px;align-items:center;margin:6px 0"><select name="rank_${p.options.indexOf(o)}" style="width:5em"><option value="">–</option>${p.options.map((_, i) => `<option value="${i + 1}" ${mine[i] === o ? "selected" : ""}>${i + 1}</option>`).join("")}</select><span>${esc(fmtOpt(o))}</span></label>`).join("")}
+      ${p.options.map((o, idx) => {
+        const rank = initialRanks[idx];
+        return `<label style="display:flex;gap:10px;align-items:center;margin:6px 0"><select name="rank_${idx}" data-prev="${rank === 0 ? '' : String(rank)}" style="width:5em"><option value="">–</option>${p.options.map((_, i) => `<option value="${i + 1}" ${i + 1 === rank ? "selected" : ""}>${i + 1}</option>`).join("")}</select><span>${esc(fmtOpt(o))}</span></label>`;
+      }).join("")}
       <div class="row" style="margin-top:8px"><button class="primary">Save my ranking</button></div>
       ${mine.length ? `<div class="small" style="margin-top:8px">Your ranking: ${mine.map(fmtOpt).map(esc).join(" › ")}${a?.by_kind === "agent" ? " (by your agent)" : ""}</div>` : ""}
     </form>`;
@@ -104,5 +174,5 @@ function page(title: string, body: string, base?: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="robots" content="noindex">
 ${base ? `<link rel="alternate" type="application/json" href="${base}.json"><link rel="alternate" type="text/plain" href="${base}.txt">` : ""}
-<style>${CSS}</style></head><body>${body}</body></html>`;
+<style>${CSS}</style></head><body>${body}<script>${SCRIPT}</script></body></html>`;
 }

@@ -316,4 +316,102 @@ describe("Integration tests against local app", () => {
       `A calendar date must not gain a clock time: "${line}"`,
     );
   });
+
+  it("6. date-poll rank swaps and saving: form POST with swapped ranks saves ordered by rank ascending, HTML reflects ranks", async (t) => {
+    if (!serverAvailable) {
+      skippedCount++;
+      t.skip(SKIP_MESSAGE);
+      return;
+    }
+    ranCount++;
+
+    const { poll, inviteUrl } = await seedParty(baseUrl);
+    // Poll options: [opt0, opt1, opt2]
+    // Suppose user had 312: row 0 is 3, row 1 is 1, row 2 is 2
+    // User swaps row 0 from 3 to 1 -> row 1 becomes 3, row 2 stays 2 -> row-order 132
+    // Form submission has rank_0=1, rank_1=3, rank_2=2
+    const formParams = new URLSearchParams();
+    formParams.append("rank_0", "1");
+    formParams.append("rank_1", "3");
+    formParams.append("rank_2", "2");
+
+    const postRes = await fetch(`${inviteUrl}/polls/${poll.id}/rank`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formParams.toString(),
+      redirect: "manual",
+    });
+
+    // Web form POST redirects to /i/<token>?saved=1 with status 303
+    assert.equal(postRes.status, 303, `Expected 303 redirect, got ${postRes.status}`);
+
+    // Read JSON document to verify saved ranking order:
+    // rank 1 is opt0, rank 2 is opt2, rank 3 is opt1 -> [opt0, opt2, opt1]
+    const jsonRes = await fetch(`${inviteUrl}.json`);
+    assert.equal(jsonRes.status, 200);
+    const jsonDoc = (await jsonRes.json()) as { polls: Array<{ id: string; your_ranking?: string[] }> };
+    const storedPoll = jsonDoc.polls.find((p) => p.id === poll.id);
+    assert.ok(storedPoll, "Poll not found in invite document");
+    assert.deepEqual(storedPoll.your_ranking, [poll.options[0], poll.options[2], poll.options[1]]);
+
+    // Read HTML document to verify rendered dropdown ranks:
+    const htmlRes = await fetch(inviteUrl);
+    assert.equal(htmlRes.status, 200);
+    const html = await htmlRes.text();
+    // opt0 (rank 1)
+    assert.ok(html.includes('name="rank_0" data-prev="1"'), "Option 0 must have rank 1 selected");
+    // opt1 (rank 3)
+    assert.ok(html.includes('name="rank_1" data-prev="3"'), "Option 1 must have rank 3 selected");
+    // opt2 (rank 2)
+    assert.ok(html.includes('name="rank_2" data-prev="2"'), "Option 2 must have rank 2 selected");
+    // Verify blank '–' option is present (partial ranking support)
+    assert.ok(html.includes('<option value="">–</option>'), "Must have blank '–' option for partial ranking");
+  });
+
+  it("7. partial ranking: leaving a date unranked submits only the ranked dates, HTML shows blank for unranked", async (t) => {
+    if (!serverAvailable) {
+      skippedCount++;
+      t.skip(SKIP_MESSAGE);
+      return;
+    }
+    ranCount++;
+
+    const { poll, inviteUrl } = await seedParty(baseUrl);
+    // Poll has 3 options: opt0, opt1, opt2
+    // Guest ranks opt0 as 1st, opt1 as 2nd, leaves opt2 unranked (blank)
+    const formParams = new URLSearchParams();
+    formParams.append("rank_0", "1");
+    formParams.append("rank_1", "2");
+    formParams.append("rank_2", ""); // unranked -- empty value, server ignores it
+
+    const postRes = await fetch(`${inviteUrl}/polls/${poll.id}/rank`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formParams.toString(),
+      redirect: "manual",
+    });
+
+    assert.equal(postRes.status, 303, `Expected 303 redirect, got ${postRes.status}`);
+
+    // Verify server stored only the 2 ranked dates in rank order (opt0 rank1, opt1 rank2)
+    const jsonRes = await fetch(`${inviteUrl}.json`);
+    assert.equal(jsonRes.status, 200);
+    const jsonDoc = (await jsonRes.json()) as { polls: Array<{ id: string; your_ranking?: string[] }> };
+    const storedPoll = jsonDoc.polls.find((p) => p.id === poll.id);
+    assert.ok(storedPoll, "Poll not found in invite document");
+    assert.deepEqual(
+      storedPoll.your_ranking,
+      [poll.options[0], poll.options[1]],
+      "Partial ranking must store only the 2 ranked options in ascending rank order",
+    );
+
+    // Verify HTML shows blank option and correct data-prev for ranked/unranked options
+    const htmlRes = await fetch(inviteUrl);
+    assert.equal(htmlRes.status, 200);
+    const html = await htmlRes.text();
+    assert.ok(html.includes('<option value="">–</option>'), "HTML must include blank option for partial ranking");
+    assert.ok(html.includes('name="rank_0" data-prev="1"'), "Option 0 must reflect rank 1");
+    assert.ok(html.includes('name="rank_1" data-prev="2"'), "Option 1 must reflect rank 2");
+    assert.ok(html.includes('name="rank_2" data-prev=""'), "Option 2 must be unranked (data-prev empty)");
+  });
 });
