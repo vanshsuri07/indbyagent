@@ -1,0 +1,46 @@
+{
+  "indbyagent": "0.1",
+  "party": {
+    "title": "Leo's 30th",
+    "kind": "birthday",
+    "timezone": "America/Los_Angeles",
+    "location": "Pier 27, San Francisco",
+    "details": "Rooftop, bring a layer. Cake at 8.",
+    "rsvp_by": "2026-10-21",
+    "date": "tbd"
+  },
+  "guest": {
+    "name": "Leo Chen",
+    "party_size_max": 2
+  },
+  "rsvp": {
+    "status": "pending"
+  },
+  "actions": {
+    "rsvp": "POST http://localhost:3000/i/TESTTOKEN_abc123def456/rsvp",
+    "message_host": "POST http://localhost:3000/i/TESTTOKEN_abc123def456/message"
+  },
+  "schema": {
+    "rsvp": {
+      "status": "yes|no|maybe|needs_human",
+      "party_size": "int<=2",
+      "dietary": "string[]",
+      "note": "string",
+      "by": { "kind": "agent|human", "name": "string" }
+    },
+    "rank_poll": {
+      "ranking": "options you can make, best first (omit ones you can't)",
+      "note": "string",
+      "by": "same"
+    },
+    "answer_poll": {
+      "choice": "one of options",
+      "note": "string",
+      "by": "same"
+    },
+    "message_host": {
+      "text": "string",
+      "by": "same"
+    }
+  }
+}
