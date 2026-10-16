@@ -1,0 +1,17 @@
+IndbyAgent invite v0.1
+Leo Chen, you're invited to Leo's 30th.
+When: Date TBD — vote on the dates
+Where: Pier 27, San Francisco
+Details: Rooftop, bring a layer. Cake at 8.
+RSVP by: 2026-10-21
+Your RSVP: pending. Max party size: 2.
+
+To answer as an agent (replace values):
+curl -s http://localhost:3000/i/A6RvcTdMGdHrEgAxM0TvRKbNbNA.json
+curl -s -X POST http://localhost:3000/i/A6RvcTdMGdHrEgAxM0TvRKbNbNA/rsvp -H 'content-type: application/json' \
+  -d '{"status":"yes","party_size":1,"dietary":[],"note":"","by":{"kind":"agent","name":"YOUR_AGENT"}}'
+Date poll 63b45579-8e8c-4eec-a4dd-8340e0114a95: Which date works best for you? — rank the ones you can make, best first (America/Los_Angeles): [2026-10-24T18:00:00.000Z | 2026-10-29T01:00:00.000Z | 2026-11-03T02:00:00.000Z]
+curl -s -X POST http://localhost:3000/i/A6RvcTdMGdHrEgAxM0TvRKbNbNA/polls/63b45579-8e8c-4eec-a4dd-8340e0114a95/rank -H 'content-type: application/json' -d '{"ranking":["2026-10-24T18:00:00.000Z","2026-10-29T01:00:00.000Z"],"by":{"kind":"agent","name":"YOUR_AGENT"}}'
+1 more poll unlocks after you RSVP yes.
+Ask the host: curl -s -X POST http://localhost:3000/i/A6RvcTdMGdHrEgAxM0TvRKbNbNA/message -H 'content-type: application/json' -d '{"text":"...","by":{"kind":"agent","name":"YOUR_AGENT"}}'
+Rules: status must be yes|no|maybe|needs_human. choice and ranking entries must match options exactly. GET never changes anything.

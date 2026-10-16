@@ -1,0 +1,124 @@
+{
+  "note": "Literal requests produced by 12 fresh agents given only an invite document. Transcribed verbatim from their final answers. d1/d2/d3 are the poll options; d2 is the one that clashes with the stated appointment.",
+  "originalToken": "RHUJunaa2NvyQI1ZysYwf70FgVk",
+  "originalPollId": "aa3d435d-36e3-4a88-bfa1-f39fbb00d711",
+  "trials": [
+    {
+      "id": "T1", "arm": "txt", "agentId": "4e61f03d",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "GET", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk.json", "headers": {}, "body": null },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "content-type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Leo + partner (2 total). Leo is allergic to tree nuts.", "by": { "kind": "agent", "name": "YOUR_AGENT" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "content-type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "by": { "kind": "agent", "name": "YOUR_AGENT" } } }
+      ]
+    },
+    {
+      "id": "T2", "arm": "txt", "agentId": "49abfc9b",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "content-type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Allergic to tree nuts.", "by": { "kind": "agent", "name": "guest-agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "content-type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "by": { "kind": "agent", "name": "guest-agent" } } }
+      ]
+    },
+    {
+      "id": "T3", "arm": "txt", "agentId": "a47de824",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "content-type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "", "by": { "kind": "agent", "name": "guest-agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "content-type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "by": { "kind": "agent", "name": "guest-agent" } } }
+      ]
+    },
+    {
+      "id": "T4", "arm": "txt", "agentId": "0b4f54aa",
+      "confidence": "medium",
+      "agentNote": "Mis-converted the second option to 'Tue 27 Oct 2026, 6:00 PM PDT' and excluded the third option instead. Flagged the task itself as possibly misspecified.",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-10-29T01:00:00.000Z"], "dates_excluded": ["2026-11-03T02:00:00.000Z"] },
+      "steps": [
+        { "method": "GET", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk.json", "headers": {}, "body": null },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "content-type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "", "by": { "kind": "agent", "name": "Leo's Agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "content-type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-10-29T01:00:00.000Z"], "by": { "kind": "agent", "name": "Leo's Agent" } } }
+      ]
+    },
+    {
+      "id": "T5", "arm": "txt", "agentId": "9a0ae3e3",
+      "confidence": "high",
+      "agentNote": "Correctly identified the second option as Wed 28 Oct 6:00 PM PT, then concluded it does not clash with a 5:30-7:00 PM appointment, and ranked all three.",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-10-29T01:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": [] },
+      "steps": [
+        { "method": "GET", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk.json", "headers": {}, "body": null },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "content-type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Tree nut allergy (Leo + partner) — please avoid tree nuts in food and cake.", "by": { "kind": "agent", "name": "YOUR_AGENT" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "content-type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-10-29T01:00:00.000Z", "2026-11-03T02:00:00.000Z"], "by": { "kind": "agent", "name": "YOUR_AGENT" } } }
+      ]
+    },
+    {
+      "id": "T6", "arm": "txt", "agentId": "168be43d",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "GET", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk.json", "headers": {}, "body": {} },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "content-type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "", "by": { "kind": "agent", "name": "leo-agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "content-type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "by": { "kind": "agent", "name": "leo-agent" } } }
+      ]
+    },
+
+    {
+      "id": "J1", "arm": "json", "agentId": "3156bce5",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "Content-Type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Leo Chen + partner. Tree nut allergy — please flag for food/cake. Ranked dates submitted separately.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "Content-Type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "note": "Can't make 2026-10-29T01:00:00.000Z — that is Wed 28 Oct 18:00 PT, overlapping the dentist appointment 17:30-19:00 PT.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } }
+      ]
+    },
+    {
+      "id": "J2", "arm": "json", "agentId": "c6fea18d",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "2 of us; tree nut allergy", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "note": "Can't do Oct 28 (dentist 5:30-7:00 PM PT)", "by": { "kind": "agent", "name": "Leo Chen's agent" } } }
+      ]
+    },
+    {
+      "id": "J3", "arm": "json", "agentId": "b21e85e7",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Tree nut allergy for Leo Chen. Party of 2 total (me + partner).", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "note": "Cannot make Oct 28 5:30-7:00 PM PT (dentist appointment).", "by": { "kind": "agent", "name": "Leo Chen's agent" } } }
+      ]
+    },
+    {
+      "id": "J4", "arm": "json", "agentId": "4f766a9c",
+      "confidence": "high",
+      "agentNote": "Produced a correct ranking, but also emitted a third step POSTing to /message with text:\"\" even though the instruction forbade messaging the host, while its own notes claimed no host message was sent.",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "Content-Type": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Allergic to tree nuts.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "Content-Type": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "note": "Cannot make 2026-10-29T01:00:00.000Z (dentist Wed 28 Oct 2026, 5:30-7:00 PM Pacific).", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/message", "headers": { "Content-Type": "application/json" }, "body": { "text": "", "by": { "kind": "agent", "name": "Leo Chen's agent" } } }
+      ]
+    },
+    {
+      "id": "J5", "arm": "json", "agentId": "2f33ba27",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Allergic to tree nuts (please flag any cake or rooftop food containing them). Cannot make the Wed 2026-10-28 6:00 PM PT option due to a dentist appointment (5:30-7:00 PM PT), so I've omitted it from my ranking.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "note": "Skipping 2026-10-29T01:00:00.000Z (= Wed 2026-10-28 6:00 PM PT): dentist appointment 5:30-7:00 PM PT.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } }
+      ]
+    },
+    {
+      "id": "J6", "arm": "json", "agentId": "1438d023",
+      "confidence": "high",
+      "understanding": { "ranked_dates_best_first": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "dates_excluded": ["2026-10-29T01:00:00.000Z"] },
+      "steps": [
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/rsvp", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "status": "yes", "party_size": 2, "dietary": ["tree nuts"], "note": "Leo Chen + partner (2 total). Tree nut allergy — please flag for catering.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } },
+        { "method": "POST", "url": "http://localhost:3000/i/RHUJunaa2NvyQI1ZysYwf70FgVk/polls/aa3d435d-36e3-4a88-bfa1-f39fbb00d711/rank", "headers": { "Content-Type": "application/json", "Accept": "application/json" }, "body": { "ranking": ["2026-10-24T18:00:00.000Z", "2026-11-03T02:00:00.000Z"], "note": "Cannot make 2026-10-29T01:00:00.000Z — conflicts with a dentist appointment Wed 28 Oct 2026, 5:30–7:00 PM Pacific.", "by": { "kind": "agent", "name": "Leo Chen's agent" } } }
+      ]
+    }
+  ]
+}

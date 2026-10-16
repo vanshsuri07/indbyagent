@@ -1,0 +1,18 @@
+{
+  "base": "http://localhost:3000",
+  "token": "A6RvcTdMGdHrEgAxM0TvRKbNbNA",
+  "inviteUrl": "http://localhost:3000/i/A6RvcTdMGdHrEgAxM0TvRKbNbNA",
+  "partyId": "74799eb1-7514-488b-b7fd-89ff69364655",
+  "datePollId": "63b45579-8e8c-4eec-a4dd-8340e0114a95",
+  "preferencePollId": "58e75315-16c8-4e76-bdf7-cf1289538b9d",
+  "options": {
+    "d1": "2026-10-24T18:00:00.000Z",
+    "d2": "2026-10-29T01:00:00.000Z",
+    "d3": "2026-11-03T02:00:00.000Z"
+  },
+  "clashOption": "2026-10-29T01:00:00.000Z",
+  "expectedRanking": [
+    "2026-10-24T18:00:00.000Z",
+    "2026-11-03T02:00:00.000Z"
+  ]
+}
